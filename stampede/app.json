@@ -11,15 +11,15 @@
   "executionSystem": "tacc-stampede-jklynch",
   "executionType": "HPC",
   "helpURI": "http://protocols.io",
-  "label": "iMicrobe ITS-16S",
-  "longDescription": "iMicrobe ITS-16S",
+  "label": "iMicrobe JU-ITS-16S",
+  "longDescription": "iMicrobe JU-ITS-16S",
   "modules": [],
   "name": "imicrobe-JUITS16S",
   "ontology": [
     "http://sswapmeet.sswap.info/agave/apps/Application"
   ],
   "parallelism": "SERIAL",
-  "shortDescription": "iMicrobe ITS 16S",
+  "shortDescription": "iMicrobe JU ITS 16S",
   "tags": [
     "imicrobe",
     "ITS",
