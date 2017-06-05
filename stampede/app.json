@@ -87,7 +87,7 @@
     {
       "id": "min_overlap",
       "value": {
-        "default": "200",
+        "default": 200,
         "required": true,
         "type": "number",
         "visible": true
@@ -97,7 +97,7 @@
       "details": {
         "argument": "--min-overlap",
         "description": "minimum overlap",
-        "label": "minimum overlaps",
+        "label": "minimum overlap",
         "showArgument": true
       }
     }
