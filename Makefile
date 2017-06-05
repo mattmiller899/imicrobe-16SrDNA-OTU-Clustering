@@ -28,7 +28,6 @@ container:
 	sudo singularity bootstrap singularity/imicrobe-JUITS16S.img singularity/imicrobe-JUITS16S.def
 
 iput-container:
-	irm imicrobe-JUITS16S.img
 	iput -K singularity/imicrobe-JUITS16S.img
 
 iget-container:
