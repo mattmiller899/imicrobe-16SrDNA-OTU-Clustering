@@ -1,0 +1,7 @@
+.cache
+*.egg-info
+*.idea
+*.pyc
+
+# Singularity image
+*.img

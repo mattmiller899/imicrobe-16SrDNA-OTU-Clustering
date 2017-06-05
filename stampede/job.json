@@ -1,0 +1,8 @@
+{
+  "name": "imicrobe-JUITS16S-test",
+  "appId": "imicrobe-JUITS16S-0.0.1",
+  "archive": true,
+  "inputs": {
+    "INPUT_DIR": "/iplant/home/jklynch/data/imicrobe/JUITS16S"
+  }
+}
