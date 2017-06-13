@@ -19,7 +19,7 @@ def get_args():
     arg_parser.add_argument('-c', '--core-count', default=1, type=int, help='number of cores to use')
     arg_parser.add_argument('--forward-primer', default='ATTAGAWACCCVNGTAGTCC', help='forward primer to be clipped')
     arg_parser.add_argument('--reverse-primer', default='TTACCGCGGCKGCTGGCAC', help='reverse primer to be clipped')
-    arg_parser.add_argument('--uchime-ref-db-fp', default='/juITS16S/pr2/pr2_gb203_version_4.5.fasta',
+    arg_parser.add_argument('--uchime-ref-db-fp', default='/cluster_16S/pr2/pr2_gb203_version_4.5.fasta',
                             help='database for vsearch --uchime_ref')
     args = arg_parser.parse_args()
     return args

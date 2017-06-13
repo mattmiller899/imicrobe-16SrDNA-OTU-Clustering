@@ -5,3 +5,7 @@
 
 # Singularity image
 *.img
+
+16S_pipeline/*.pl
+16S_pipeline/*.gz
+16S_pipeline/*.pbs
