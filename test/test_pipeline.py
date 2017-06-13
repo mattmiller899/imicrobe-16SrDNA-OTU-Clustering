@@ -1,6 +1,6 @@
 import os.path
 
-import juITS16S.pipeline as pipeline
+import cluster_16S.pipeline as pipeline
 
 
 def test_pipeline(fs):
