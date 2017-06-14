@@ -1,0 +1,77 @@
+Bootstrap: docker
+From: ubuntu:latest
+
+%runscript
+
+    echo "Failte!"
+
+%setup
+    mkdir "$SINGULARITY_ROOTFS/imicrobe-JUITS16S"
+    mount --no-mtab --bind `pwd` "$SINGULARITY_ROOTFS/imicrobe-JUITS16S"
+
+%post
+
+   apt update
+   apt install -y apt-utils git wget zip build-essential autoconf automake libtool python3-dev python3-pip
+
+   # having trouble installing cutadapt with pip3 but this works
+   apt install -y python3-cutadapt
+
+   /usr/bin/pip3 install --upgrade pip
+   /usr/bin/pip3 install numpy
+
+   /usr/bin/pip3 install /imicrobe-JUITS16S[dev,test]
+
+   # create a directory for installed dependencies
+   export APP_DIR=/juITS16S
+   mkdir -p $APP_DIR
+   cd $APP_DIR
+
+   # install pear
+   cd $APP_DIR
+   wget https://sco.h-its.org/exelixis/web/software/pear/files/pear-0.9.10-bin-64.tar.gz
+   tar xvf pear-0.9.10-bin-64.tar.gz
+   cd pear-0.9.10-bin-64
+   mv pear-0.9.10-bin-64 pear
+   PEAR_PATH=`pwd`
+
+   # install usearch
+   USEARCH_PATH=$APP_DIR/usearch
+   mkdir -p $USEARCH_PATH
+   cd $USEARCH_PATH
+   wget http://drive5.com/cgi-bin/upload3.py?license=2017060409023223112 -O usearch
+   chmod a+x usearch
+   ls -l
+
+   # install vsearch
+   cd $APP_DIR
+   wget https://github.com/torognes/vsearch/releases/download/v2.4.3/vsearch-2.4.3-linux-x86_64.tar.gz -O /tmp/vsearch.tar.gz
+   tar xzf /tmp/vsearch.tar.gz
+   rm /tmp/vsearch.tar.gz
+   mv $APP_DIR/vsearch-2.4.3-linux-x86_64 $APP_DIR/vsearch
+   export VSEARCH_PATH=$APP_DIR/vsearch/bin
+   export PATH=$VSEARCH_PATH:$PATH
+   echo "installed vsearch at $VSEARCH_PATH"
+   echo "  PATH=$PATH"
+
+   # add environment variables to /environment file
+   echo "\nexport PATH=$PEAR_PATH:$USEARCH_PATH:$VSEARCH_PATH:\$PATH" >> /environment
+
+   # create mount points for TACC directories
+   mkdir /home1
+   mkdir /scratch
+   mkdir /work
+
+%test
+   . /environment
+   echo "PATH=${PATH}"
+
+   python3 --version
+   cutadapt3 --version
+   # pear --version has exit code > 0
+   echo "`pear --version`"
+   usearch --version
+   vsearch --version
+
+   pipeline
+   #write_launcher_job_file
