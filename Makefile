@@ -1,4 +1,4 @@
-APP = imicrobe-JUITS16S
+APP = imicrobe-16SrDNA-OTU-Clustering
 VERSION = 0.0.1
 EMAIL = jklynch@email.arizona.edu
 
@@ -23,14 +23,14 @@ jobs-submit:
 	jobs-submit -F stampede/job.json
 
 container:
-	rm -f singularity/imicrobe-JUITS16S.img
-	sudo singularity create --size 2048 singularity/imicrobe-JUITS16S.img
-	sudo singularity bootstrap singularity/imicrobe-JUITS16S.img singularity/imicrobe-JUITS16S.def
+	rm -f singularity/$(APP).img
+	sudo singularity create --size 2048 singularity/$(APP).img
+	sudo singularity bootstrap singularity/$(APP).img singularity/$(APP).def
 
 iput-container:
-	iput -K singularity/imicrobe-JUITS16S.img
+	iput -K singularity/$(APP).img
 
 iget-container:
-	iget -K imicrobe-JUITS16S.img
-	mv imicrobe-JUITS16S.img stampede/
+	iget -K $(APP).img
+	mv $(APP).img stampede/
 
