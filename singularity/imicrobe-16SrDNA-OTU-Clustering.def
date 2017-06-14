@@ -6,8 +6,8 @@ From: ubuntu:latest
     echo "Failte!"
 
 %setup
-    mkdir "$SINGULARITY_ROOTFS/imicrobe-JUITS16S"
-    mount --no-mtab --bind `pwd` "$SINGULARITY_ROOTFS/imicrobe-JUITS16S"
+    mkdir "$SINGULARITY_ROOTFS/imicrobe-16SrDNA-OTU-Clustering"
+    mount --no-mtab --bind `pwd` "$SINGULARITY_ROOTFS/imicrobe-16SrDNA-OTU-Clustering"
 
 %post
 
@@ -20,10 +20,10 @@ From: ubuntu:latest
    /usr/bin/pip3 install --upgrade pip
    /usr/bin/pip3 install numpy
 
-   /usr/bin/pip3 install /imicrobe-JUITS16S[dev,test]
+   /usr/bin/pip3 install /imicrobe-16SrDNA-OTU-Clustering[dev,test]
 
    # create a directory for installed dependencies
-   export APP_DIR=/juITS16S
+   export APP_DIR=/app
    mkdir -p $APP_DIR
    cd $APP_DIR
 
