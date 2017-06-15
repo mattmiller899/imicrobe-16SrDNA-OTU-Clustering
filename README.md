@@ -27,7 +27,7 @@ $ cluster_16S \
   --output-dir <path for output directory>
 ```
 
-# Build and Run as a Singularity container
+## Build and Run as a Singularity container
 
 Singularity, Git, and make must be installed to build the pipeline as a Singularity container.
 In addition, `sudo` priviledge is required.
