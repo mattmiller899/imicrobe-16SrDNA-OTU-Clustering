@@ -1,6 +1,7 @@
 import gzip
 import logging
 import os.path
+import tempfile
 
 import cluster_16S.pipeline as pipeline
 
@@ -45,27 +46,13 @@ def test_step_01(fs):
 def test_step_02(fs):
     input_dir = '/work_dir/step_01_dir'
     fs.CreateDirectory(input_dir)
-    fs.CreateFile(file_path=os.path.join(input_dir, 'input_file_01.fastq.gz'), contents=gzip.compress(bytes('''\
-@R3-16S-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:17273:1842 1:N:0
-TACGTAGGGTGCGAGCGTTAATCGGAATTACTGGGCGTAAAGCGGGCGAGGTAGAATTCCACGTTTAGCAGTGAAATGCGTAGAGATGTGGAGGAATACCTATGGCGAAG
-+
-GGGGFGG>EGGGGDGDEGE,,CF<7,8@F<FED88E@F77,9CCBFDCG7+:=FGGGDFFE,,CFA<++:,B,,,AAAB,B7+3@:D@9FDFGGGGGGGGGEGGGGCGFG
-@R3-ITS-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:14076:1869 1:N:0
-TACGTAGGTGGCAAGCGTTATCCGGAATTATTGGGCGTAAAGCGCGCGTAGGCGGTTTTTTAAGTCTGATGTGAAAGCCCACGGCTCAACCGTGGAGGGTCATTGGAAAC
-+
-FFGCGD@FGGFG?FFGGGGGGGGGGG7FGGGGAFGGGGEDCFGGGGGGGGGGGGGGGGGGGF8<FDG9,<?F<9,,?EE@,B>FFCGGGGGGGGGCGGGGGFGGGGFGGG
-''', 'utf-8')))
+    fs.CreateFile(
+        file_path=os.path.join(input_dir, 'input_file_01.fastq.gz'),
+        contents=gzip.compress(bytes(forward_fastq_records, 'utf-8')))
 
-    fs.CreateFile(file_path=os.path.join(input_dir, 'input_file_02.fastq.gz'), contents=gzip.compress(bytes('''\
-@R3-16S-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:17273:1842 2:N:0
-CCTGTTTGCTACCCACGCTTTCGGGCATGAACGTCAGTGTTGTCCCAGGAGGCTGCCTTCGCCATCGGTATTCCTCCACATCTCTACGCATTTCACTGCTACACGTGGAA
-+
-E<E,CEFC<F9@@C,@66@BFDF@+6+C,,,C6C@,,C6FE,C@6C,:,,,,B@,,BEDB,,CCB=,,B,?@EFE,,,,,599C@F;F7+?=@E,AEED==DB>8@,++,
-@R3-ITS-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:14076:1869 2:N:0
-CCTGTTTGATCCCCACGCTTTCGCACATCAGCGTCAGTTACAGACCAGAAAGTCGCCTTCGCCACTGGTGTTCCTCCATATCTCTACGCATTTCACCGCTACACATGGAA
-+
-GGGGGGGGFGGFDFCFEGGGGGGGGG7FFCEFEFGE@FE9CFC9EFFFC<EFFGDGGGGGGGE:EF?FFGGGG9AFF8F;CFGGGGGCFDGGGGGGGGGGCBCG,E,,9>
-''', 'utf-8')))
+    fs.CreateFile(
+        file_path=os.path.join(input_dir, 'input_file_02.fastq.gz'),
+        contents=gzip.compress(bytes(reverse_fastq_records, 'utf-8')))
 
     output_dir = pipeline.step_02_adjust_headers(input_dir=input_dir)
 
@@ -89,23 +76,71 @@ GGGGGGGGFGGFDFCFEGGGGGGGGG7FFCEFEFGE@FE9CFC9EFFFC<EFFGDGGGGGGGE:EF?FFGGGG9AFF8F;
         assert '-ITS-' in output_file.readline()
 
 
-def test_pipeline(fs):
-    input_dir = '/input'
-    fs.CreateDirectory(input_dir)
+def test_step_03():
+    with tempfile.TemporaryDirectory() as work_dir:
+        with tempfile.TemporaryDirectory(dir=work_dir) as input_dir:
+            write_forward_reverse_read_files(input_dir=input_dir)
+            print(os.listdir(input_dir))
+            assert len(os.listdir(input_dir)) == 2
 
-    output_dir = '/output'
-    fs.CreateDirectory(output_dir)
+            output_dir = pipeline.step_03_remove_primers(input_dir=input_dir)
 
-    output_dir_list = pipeline.pipeline(
-        input_dir=input_dir,
-        output_dir=output_dir,
-        core_count=1,
-        forward_primer='ATTAGAWACCCVNGTAGTCC',
-        reverse_primer='TTACCGCGGCKGCTGGCAC',
-        uchime_ref_db_fp='')
+            assert output_dir == os.path.join(work_dir, 'step_03_remove_primers')
+            assert os.path.exists(output_dir)
 
-    assert len(output_dir_list) == 11
+            output_file_list = sorted(os.listdir(output_dir))
+            assert len(output_file_list) == 2
+            assert output_file_list[0] == 'input_file_trimmed_01.fastq.gz'
+            assert output_file_list[1] == 'input_file_trimmed_02.fastq.gz'
 
-    for output_dir in output_dir_list:
-        assert os.path.exists(output_dir)
-        assert os.path.isdir(output_dir)
+
+
+def test_pipeline():
+    with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as output_dir:
+        write_forward_reverse_read_files(input_dir=input_dir)
+
+        output_dir_list = pipeline.pipeline(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            core_count=1,
+            forward_primer='ATTAGAWACCCVNGTAGTCC',
+            reverse_primer='TTACCGCGGCKGCTGGCAC',
+            uchime_ref_db_fp='')
+
+        assert len(output_dir_list) == 10
+
+        for output_dir in output_dir_list:
+            assert os.path.exists(output_dir)
+            assert os.path.isdir(output_dir)
+
+
+forward_fastq_records = '''\
+@R3-16S-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:17273:1842 1:N:0
+TACGTAGGGTGCGAGCGTTAATCGGAATTACTGGGCGTAAAGCGGGCGAGGTAGAATTCCACGTTTAGCAGTGAAATGCGTAGAGATGTGGAGGAATACCTATGGCGAAG
++
+GGGGFGG>EGGGGDGDEGE,,CF<7,8@F<FED88E@F77,9CCBFDCG7+:=FGGGDFFE,,CFA<++:,B,,,AAAB,B7+3@:D@9FDFGGGGGGGGGEGGGGCGFG
+@R3-ITS-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:14076:1869 1:N:0
+TACGTAGGTGGCAAGCGTTATCCGGAATTATTGGGCGTAAAGCGCGCGTAGGCGGTTTTTTAAGTCTGATGTGAAAGCCCACGGCTCAACCGTGGAGGGTCATTGGAAAC
++
+FFGCGD@FGGFG?FFGGGGGGGGGGG7FGGGGAFGGGGEDCFGGGGGGGGGGGGGGGGGGGF8<FDG9,<?F<9,,?EE@,B>FFCGGGGGGGGGCGGGGGFGGGGFGGG
+'''
+
+reverse_fastq_records = '''\
+@R3-16S-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:17273:1842 2:N:0
+CCTGTTTGCTACCCACGCTTTCGGGCATGAACGTCAGTGTTGTCCCAGGAGGCTGCCTTCGCCATCGGTATTCCTCCACATCTCTACGCATTTCACTGCTACACGTGGAA
++
+E<E,CEFC<F9@@C,@66@BFDF@+6+C,,,C6C@,,C6FE,C@6C,:,,,,B@,,BEDB,,CCB=,,B,?@EFE,,,,,599C@F;F7+?=@E,AEED==DB>8@,++,
+@R3-ITS-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:14076:1869 2:N:0
+CCTGTTTGATCCCCACGCTTTCGCACATCAGCGTCAGTTACAGACCAGAAAGTCGCCTTCGCCACTGGTGTTCCTCCATATCTCTACGCATTTCACCGCTACACATGGAA
++
+GGGGGGGGFGGFDFCFEGGGGGGGGG7FFCEFEFGE@FE9CFC9EFFFC<EFFGDGGGGGGGE:EF?FFGGGG9AFF8F;CFGGGGGCFDGGGGGGGGGGCBCG,E,,9>
+'''
+
+def write_forward_reverse_read_files(input_dir):
+    input_01_fp = os.path.join(input_dir, 'input_file_01.fastq.gz')
+    input_02_fp = os.path.join(input_dir, 'input_file_02.fastq.gz')
+    with gzip.open(input_01_fp, 'wt') as input_01_file:
+        input_01_file.write(forward_fastq_records)
+
+    with gzip.open(input_02_fp, 'wt') as input_02_file:
+        input_02_file.write(reverse_fastq_records)
