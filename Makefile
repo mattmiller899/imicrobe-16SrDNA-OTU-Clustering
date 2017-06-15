@@ -16,6 +16,10 @@ apps-addupdate:
 
 deploy-app: clean files-delete files-upload apps-addupdate
 
+share-app:
+	systems-roles-addupdate -v -u $(TARGETUSER) -r USER tacc-stampede-$(CYVERSEUSERNAME)
+	apps-pems-update -v -u $(TARGETUSER) -p READ_EXECUTE $(APP)-$(VERSION)
+
 test:
 	sbatch test.sh
 
