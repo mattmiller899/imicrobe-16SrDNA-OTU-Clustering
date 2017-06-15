@@ -8,7 +8,9 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import sys
+import traceback
 
 from Bio.Alphabet import generic_dna
 from Bio import SeqIO
@@ -17,7 +19,6 @@ from Bio import SeqIO
 def main():
     args = get_args()
 
-    logging.basicConfig(level=logging.DEBUG)
     pipeline(**args.__dict__)
     return 0
 
@@ -37,25 +38,45 @@ def get_args():
 
 def pipeline(input_dir, output_dir, core_count, forward_primer, reverse_primer, uchime_ref_db_fp):
 
-    step_01_output_dir = step_01_copy_and_compress(input_dir=input_dir, work_dir=output_dir)
-    step_02_output_dir = step_02_adjust_headers(input_dir=step_01_output_dir)
-    step_03_output_dir = step_03_remove_primers_with_cutadapt(input_dir=step_02_output_dir)
-    step_04_output_dir = step_04_merge_forward_reverse_reads_with_pear(input_dir=step_03_output_dir)
-    step_05_output_dir = step_05_qc_reads_with_vsearch(input_dir=step_04_output_dir)
-    step_06_output_dir = step_06_combine_runs(input_dir=step_05_output_dir)
-    step_07_output_dir = step_07_dereplicate_sort_remove_low_abundance_reads(input_dir=step_06_output_dir)
-    step_08_output_dir = step_08_cluster_97_percent(input_dir=step_07_output_dir)
-    step_09_output_dir = step_09_reference_based_chimera_detection(input_dir=step_08_output_dir)
-    step_10_output_dir = step_10_map_raw_reads_to_otus(input_dir=step_09_output_dir)
-    step_11_output_dir = step_11_write_otu_table(input_dir=step_10_output_dir)
-
-    output_dir_list = [
-        step_01_output_dir, step_02_output_dir, step_03_output_dir, step_04_output_dir,
-        step_05_output_dir, step_06_output_dir, step_07_output_dir, step_08_output_dir,
-        step_09_output_dir, step_10_output_dir, step_11_output_dir
-    ]
+    output_dir_list = []
+    output_dir_list.append(step_01_copy_and_compress(input_dir=input_dir, work_dir=output_dir))
+    ##output_dir_list.append(step_02_adjust_headers(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_03_remove_primers(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_04_merge_forward_reverse_reads_with_pear(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_05_qc_reads_with_vsearch(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_06_combine_runs(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_07_dereplicate_sort_remove_low_abundance_reads(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_08_cluster_97_percent(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_09_reference_based_chimera_detection(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_10_map_raw_reads_to_otus(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_11_write_otu_table(input_dir=output_dir_list[-1]))
 
     return output_dir_list
+
+
+def run_cmd(cmd_line_list, **kwargs):
+    log = logging.getLogger(name=__name__)
+    try:
+        log.debug('executing "%s"', ' '.join((str(x) for x in cmd_line_list)))
+        output = subprocess.run(
+            cmd_line_list,
+            stderr=subprocess.STDOUT,
+            universal_newlines=True,
+            **kwargs)
+        log.debug(output)
+        return output
+    except subprocess.CalledProcessError as c:
+        logging.exception(c)
+        print(c.message)
+        print(c.cmd)
+        print(c.output)
+        raise c
+    except Exception as e:
+        logging.exception(e)
+        print('blarg!')
+        print(e)
+        traceback.print_exc()
+        raise e
 
 
 def step_01_copy_and_compress(input_dir, work_dir):
@@ -133,10 +154,43 @@ def step_02_adjust_headers(input_dir):
     return output_dir
 
 
-def step_03_remove_primers_with_cutadapt(input_dir):
+def step_03_remove_primers(input_dir, cutadapt_script_name='cutadapt'):
     function_name = sys._getframe().f_code.co_name
     log = logging.getLogger(name=function_name)
     output_dir = create_output_dir(output_dir_name=function_name, input_dir=input_dir)
+
+    forward_fastq_files = glob.glob(os.path.join(input_dir, '*_01.fastq.gz'))
+    if len(forward_fastq_files) == 0:
+        raise Exception('found no forward reads in directory {}'.format(input_dir))
+
+    minimum_length = 100
+
+    forward_primer = 'ATTAGAWACCCVNGTAGTCC'
+    reverse_primer = 'TTACCGCGGCKGCTGGCAC'
+    for forward_fastq_fp in forward_fastq_files:
+        log.info('removing forward primers from "%s"', forward_fastq_fp)
+        reverse_fastq_fp = re.sub(string=forward_fastq_fp, pattern='_01\.fastq\.gz$', repl='_02.fastq.gz')
+        log.info('removing reverse primers from "%s"', reverse_fastq_fp)
+
+        forward_fastq_basename = os.path.basename(forward_fastq_fp)
+        trimmed_forward_fastq_fp = os.path.join(
+            output_dir,
+            re.sub(string=forward_fastq_basename, pattern='_01\.fastq\.gz$', repl='_trimmed_01.fastq.gz'))
+        trimmed_reverse_fastq_fp = os.path.join(
+            output_dir,
+            re.sub(string=forward_fastq_basename, pattern='_01\.fastq\.gz$', repl='_trimmed_02.fastq.gz'))
+
+        run_cmd([
+            cutadapt_script_name,
+            '-a', forward_primer,
+            '-A', reverse_primer,
+            '-o', trimmed_forward_fastq_fp,
+            '-p', trimmed_reverse_fastq_fp,
+            '-m', str(minimum_length),
+            forward_fastq_fp,
+            reverse_fastq_fp
+        ])
+
     return output_dir
 
 
@@ -210,4 +264,5 @@ def create_output_dir(output_dir_name, parent_dir=None, input_dir=None):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     main()
