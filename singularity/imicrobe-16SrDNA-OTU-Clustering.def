@@ -3,7 +3,7 @@ From: ubuntu:latest
 
 %runscript
 
-    echo "Failte!"
+    pipeline $@
 
 %setup
     mkdir "$SINGULARITY_ROOTFS/imicrobe-16SrDNA-OTU-Clustering"
