@@ -37,7 +37,7 @@ Build the pipeline container:
 ```
 $ git clone https://github.com/hurwitzlab/imicrobe-16SrDNA-OTU-Clustering.git
 $ cd imicrobe-16SrDNA-OTU-Clustering
-$ sudo make container
+$ make container
 ```
 This may take 15 minutes or more. The Singularity container will be built in the `imicrobe-16SrDNA-OTU-Clustering/singularity` directory.
 
