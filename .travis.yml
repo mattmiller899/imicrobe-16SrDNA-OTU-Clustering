@@ -12,7 +12,7 @@ before_install:
   - sudo make install
 install:
   - pwd
-  - cd /home/travis/build/hurwitzlab/imicrobe-16SrDNA-OTU-CLustering
+  - cd /home/travis/build/hurwitzlab/imicrobe-16SrDNA-OTU-Clustering
   - ls -l
   - make container
 script:
