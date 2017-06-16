@@ -17,6 +17,7 @@ from Bio import SeqIO
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     args = get_args()
 
     pipeline(**args.__dict__)
@@ -32,16 +33,19 @@ def get_args():
     arg_parser.add_argument('--reverse-primer', default='TTACCGCGGCKGCTGGCAC', help='reverse primer to be clipped')
     arg_parser.add_argument('--uchime-ref-db-fp', default='/cluster_16S/pr2/pr2_gb203_version_4.5.fasta',
                             help='database for vsearch --uchime_ref')
+    arg_parser.add_argument('--cutadapt-script-name', default='cutadapt', help='cutadapt or cutadapt3')
     args = arg_parser.parse_args()
     return args
 
 
-def pipeline(input_dir, output_dir, core_count, forward_primer, reverse_primer, uchime_ref_db_fp):
+def pipeline(input_dir, output_dir, core_count, forward_primer, reverse_primer, uchime_ref_db_fp, cutadapt_script_name):
 
     output_dir_list = []
     output_dir_list.append(step_01_copy_and_compress(input_dir=input_dir, work_dir=output_dir))
     ##output_dir_list.append(step_02_adjust_headers(input_dir=output_dir_list[-1]))
-    output_dir_list.append(step_03_remove_primers(input_dir=output_dir_list[-1]))
+    output_dir_list.append(step_03_remove_primers(
+        input_dir=output_dir_list[-1],
+        cutadapt_script_name=cutadapt_script_name))
     output_dir_list.append(step_04_merge_forward_reverse_reads_with_pear(input_dir=output_dir_list[-1]))
     output_dir_list.append(step_05_qc_reads_with_vsearch(input_dir=output_dir_list[-1]))
     output_dir_list.append(step_06_combine_runs(input_dir=output_dir_list[-1]))
@@ -89,6 +93,9 @@ def step_01_copy_and_compress(input_dir, work_dir):
     log.debug('input_file_glob: %s', input_file_glob)
     input_fp_list = glob.glob(input_file_glob)
     log.info('input files: %s', input_fp_list)
+
+    if len(input_fp_list) == 0:
+        raise Exception('found no fastq files in directory "{}"'.format(input_dir))
 
     for input_fp in input_fp_list:
         destination_fp = os.path.join(output_dir, os.path.basename(input_fp))
@@ -159,7 +166,7 @@ def step_03_remove_primers(input_dir, cutadapt_script_name='cutadapt'):
     log = logging.getLogger(name=function_name)
     output_dir = create_output_dir(output_dir_name=function_name, input_dir=input_dir)
 
-    forward_fastq_files = glob.glob(os.path.join(input_dir, '*_01.fastq.gz'))
+    forward_fastq_files = glob.glob(os.path.join(input_dir, '*_?1*.fastq.gz'))
     if len(forward_fastq_files) == 0:
         raise Exception('found no forward reads in directory {}'.format(input_dir))
 
@@ -169,16 +176,26 @@ def step_03_remove_primers(input_dir, cutadapt_script_name='cutadapt'):
     reverse_primer = 'TTACCGCGGCKGCTGGCAC'
     for forward_fastq_fp in forward_fastq_files:
         log.info('removing forward primers from "%s"', forward_fastq_fp)
-        reverse_fastq_fp = re.sub(string=forward_fastq_fp, pattern='_01\.fastq\.gz$', repl='_02.fastq.gz')
+        forward_fastq_basename = os.path.basename(forward_fastq_fp)
+        reverse_fastq_basename = re.sub(
+            string=forward_fastq_basename,
+            pattern=r'_([0R])1',
+            repl=lambda m: '_{}2'.format(m.group(1)))
+        reverse_fastq_fp = os.path.join(input_dir, reverse_fastq_basename)
         log.info('removing reverse primers from "%s"', reverse_fastq_fp)
 
-        forward_fastq_basename = os.path.basename(forward_fastq_fp)
         trimmed_forward_fastq_fp = os.path.join(
             output_dir,
-            re.sub(string=forward_fastq_basename, pattern='_01\.fastq\.gz$', repl='_trimmed_01.fastq.gz'))
+            re.sub(
+                string=forward_fastq_basename,
+                pattern='_([0R])1',
+                repl=lambda m: '_trimmed_{}1'.format(m.group(1))))
         trimmed_reverse_fastq_fp = os.path.join(
             output_dir,
-            re.sub(string=forward_fastq_basename, pattern='_01\.fastq\.gz$', repl='_trimmed_02.fastq.gz'))
+            re.sub(
+                string=forward_fastq_basename,
+                pattern='_([0R])1',
+                repl=lambda m: '_trimmed_{}2'.format(m.group(1))))
 
         run_cmd([
             cutadapt_script_name,
@@ -264,5 +281,4 @@ def create_output_dir(output_dir_name, parent_dir=None, input_dir=None):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
     main()
