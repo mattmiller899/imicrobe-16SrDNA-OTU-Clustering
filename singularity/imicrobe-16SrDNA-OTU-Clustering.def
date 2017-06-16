@@ -3,7 +3,7 @@ From: ubuntu:latest
 
 %runscript
 
-    pipeline $@
+    pipeline $@ --cutadapt-script-name cutadapt3
 
 %setup
     mkdir "$SINGULARITY_ROOTFS/imicrobe-16SrDNA-OTU-Clustering"
@@ -23,7 +23,7 @@ From: ubuntu:latest
    /usr/bin/pip3 install /imicrobe-16SrDNA-OTU-Clustering[dev,test]
 
    # create a directory for installed dependencies
-   export APP_DIR=/app
+   APP_DIR=/app
    mkdir -p $APP_DIR
    cd $APP_DIR
 
@@ -49,8 +49,8 @@ From: ubuntu:latest
    tar xzf /tmp/vsearch.tar.gz
    rm /tmp/vsearch.tar.gz
    mv $APP_DIR/vsearch-2.4.3-linux-x86_64 $APP_DIR/vsearch
-   export VSEARCH_PATH=$APP_DIR/vsearch/bin
-   export PATH=$VSEARCH_PATH:$PATH
+   VSEARCH_PATH=$APP_DIR/vsearch/bin
+   PATH=$VSEARCH_PATH:$PATH
    echo "installed vsearch at $VSEARCH_PATH"
    echo "  PATH=$PATH"
 
@@ -72,6 +72,3 @@ From: ubuntu:latest
    echo "`pear --version`"
    usearch --version
    vsearch --version
-
-   pipeline
-   #write_launcher_job_file
