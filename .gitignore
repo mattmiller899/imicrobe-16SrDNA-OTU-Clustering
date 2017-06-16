@@ -6,6 +6,6 @@
 # Singularity image
 *.img
 
-16S_pipeline/*.pl
-16S_pipeline/*.fastq*
-16S_pipeline/*.pbs
+*.pl
+*.fastq*
+*.pbs
