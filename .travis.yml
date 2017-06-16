@@ -12,13 +12,13 @@ before_install:
   - sudo make install
 install:
   - pwd
-  - cd /home/travis/build/hurwitzlab/imicrobe-JUITS16S
+  - cd /home/travis/build/hurwitzlab/imicrobe-16SrDNA-OTU-CLustering
   - ls -l
   - make container
 script:
   - pwd
   - ls -l
-  - singularity exec singularity/imicrobe-JUITS16S.img py.test test/
+  - singularity exec singularity/imicrobe-16SrDNA-OTU-Clustering.img py.test test/
 notifications:
   email:
     on_success: always
