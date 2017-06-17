@@ -37,7 +37,7 @@ def test_step_01(fs):
 
     output_dir_list = os.listdir(work_dir)
     assert len(output_dir_list) == 1
-    output_file_list = os.listdir(os.path.join(work_dir, output_dir_list[0]))
+    output_file_list = sorted(os.listdir(os.path.join(work_dir, output_dir_list[0])))
     assert len(output_file_list) == 2
     assert output_file_list[0] == 'input_file_01.fastq.gz'
     assert output_file_list[1] == 'input_file_02.fastq.gz'
