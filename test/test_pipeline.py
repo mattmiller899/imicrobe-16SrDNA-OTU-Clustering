@@ -10,9 +10,12 @@ logging.basicConfig(level=logging.DEBUG)
 
 
 def get_pipeline(work_dir='/work_dir'):
-    return pipeline.Pipeline(work_dir=work_dir, core_count=1, cutadapt_script_name='cutadapt', cutadapt_min_length=100,
-                             forward_primer='ATTAGAWACCCVNGTAGTCC', reverse_primer='TTACCGCGGCKGCTGGCAC',
-                             uchime_ref_db_fp='')
+    return pipeline.Pipeline(
+        work_dir=work_dir, core_count=1,
+        cutadapt_script_name='cutadapt', cutadapt_min_length=100,
+        forward_primer='ATTAGAWACCCVNGTAGTCC', reverse_primer='TTACCGCGGCKGCTGGCAC',
+        pear_min_overlap=1, pear_max_assembly_length=270, pear_min_assembly_length=0,
+        uchime_ref_db_fp='')
 
 
 def test_create_output_dir__input_dir(fs):
@@ -101,7 +104,6 @@ def test_step_02():
 def test_step_03():
     with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
         write_forward_reverse_read_files(input_dir=input_dir)
-        print(os.listdir(input_dir))
         assert len(os.listdir(input_dir)) == 2
 
         output_dir = get_pipeline(work_dir=work_dir).step_03_remove_primers(input_dir=input_dir)
@@ -113,6 +115,26 @@ def test_step_03():
         assert len(output_file_list) == 2
         assert output_file_list[0] == 'input_file_trimmed_01.fastq.gz'
         assert output_file_list[1] == 'input_file_trimmed_02.fastq.gz'
+
+
+def test_step_04():
+    with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
+        write_forward_reverse_read_files(input_dir=input_dir)
+        assert len(os.listdir(input_dir)) == 2
+
+        output_dir = get_pipeline(work_dir=work_dir).step_04_merge_forward_reverse_reads_with_pear(
+            input_dir=input_dir
+        )
+
+        assert output_dir == os.path.join(work_dir, 'step_04_merge_forward_reverse_reads_with_pear')
+        assert os.path.exists(output_dir)
+
+        output_file_list = sorted(os.listdir(output_dir))
+        assert len(output_file_list) == 4
+        assert output_file_list[0] == 'input_file_joined.assembled.fastq.gz'
+        assert output_file_list[1] == 'input_file_joined.discarded.fastq.gz'
+        assert output_file_list[2] == 'input_file_joined.unassembled.forward.fastq.gz'
+        assert output_file_list[3] == 'input_file_joined.unassembled.reverse.fastq.gz'
 
 
 def test_pipeline():
