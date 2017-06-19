@@ -26,29 +26,59 @@ def main():
 
 def get_args():
     arg_parser = argparse.ArgumentParser()
-    arg_parser.add_argument('-i', '--input-dir', default='.', help='path to the input directory')
-    arg_parser.add_argument('-o', '--output-dir', default='.', help='path to the output directory')
-    arg_parser.add_argument('-c', '--core-count', default=1, type=int, help='number of cores to use')
-    arg_parser.add_argument('--forward-primer', default='ATTAGAWACCCVNGTAGTCC', help='forward primer to be clipped')
-    arg_parser.add_argument('--reverse-primer', default='TTACCGCGGCKGCTGGCAC', help='reverse primer to be clipped')
+    arg_parser.add_argument('-i', '--input-dir', default='.',
+                            help='path to the input directory')
+    arg_parser.add_argument('-o', '--output-dir', default='.',
+                            help='path to the output directory')
+
+    arg_parser.add_argument('-c', '--core-count', default=1, type=int,
+                            help='number of cores to use')
+
+    arg_parser.add_argument('--forward-primer', default='ATTAGAWACCCVNGTAGTCC',
+                            help='forward primer to be clipped')
+    arg_parser.add_argument('--reverse-primer', default='TTACCGCGGCKGCTGGCAC',
+                            help='reverse primer to be clipped')
+
     arg_parser.add_argument('--uchime-ref-db-fp', default='/cluster_16S/pr2/pr2_gb203_version_4.5.fasta',
                             help='database for vsearch --uchime_ref')
-    arg_parser.add_argument('--cutadapt-script-name', default='cutadapt', help='cutadapt or cutadapt3')
-    arg_parser.add_argument('--cutadapt-min-length', required=True, type=int, help='min_length for cutadapt')
+
+    arg_parser.add_argument('--cutadapt-script-name', default='cutadapt',
+                            help='cutadapt or cutadapt3')
+    arg_parser.add_argument('--cutadapt-min-length', required=True, type=int,
+                            help='min_length for cutadapt')
+
+    arg_parser.add_argument('--pear-min-overlap', required=True, type=int,
+                            help='-v/--min-overlap for pear')
+    arg_parser.add_argument('--pear-max-assembly-length', required=True, type=int,
+                            help='-m/--max-assembly-length for pear')
+    arg_parser.add_argument('--pear-min-assembly-length', required=True, type=int,
+                            help='-m/--min-assembly-length for pear')
+
     args = arg_parser.parse_args()
     return args
 
 
 class Pipeline:
-    def __init__(self, work_dir, core_count, cutadapt_script_name, cutadapt_min_length, forward_primer, reverse_primer,
+    def __init__(self,
+                 work_dir,
+                 core_count,
+                 cutadapt_script_name, cutadapt_min_length,
+                 forward_primer, reverse_primer,
+                 pear_min_overlap, pear_max_assembly_length, pear_min_assembly_length,
                  uchime_ref_db_fp):
 
         self.work_dir = work_dir
         self.core_count = core_count
+
         self.cutadapt_script_name = cutadapt_script_name
         self.cutadapt_min_length = cutadapt_min_length
         self.forward_primer = forward_primer
         self.reverse_primer = reverse_primer
+
+        self.pear_min_overlap = pear_min_overlap
+        self.pear_max_assembly_length = pear_max_assembly_length
+        self.pear_min_assembly_length = pear_min_assembly_length
+
         self.uchime_ref_db_fp = uchime_ref_db_fp
 
     def run(self, input_dir):
@@ -154,19 +184,11 @@ class Pipeline:
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
 
-        input_glob = os.path.join(input_dir, '*_?1*.fastq.gz')
-        forward_fastq_files = glob.glob(input_glob)
-        if len(forward_fastq_files) == 0:
-            raise Exception('found no forward reads from glob "{}"'.format(input_glob))
-
-        for forward_fastq_fp in forward_fastq_files:
+        for forward_fastq_fp in get_forward_fastq_files(input_dir=input_dir):
             log.info('removing forward primers from file "%s"', forward_fastq_fp)
             forward_fastq_basename = os.path.basename(forward_fastq_fp)
-            reverse_fastq_basename = re.sub(
-                string=forward_fastq_basename,
-                pattern=r'_([0R])1',
-                repl=lambda m: '_{}2'.format(m.group(1)))
-            reverse_fastq_fp = os.path.join(input_dir, reverse_fastq_basename)
+
+            reverse_fastq_fp = get_associated_reverse_fastq_fp(forward_fp=forward_fastq_fp)
             log.info('removing reverse primers from file "%s"', reverse_fastq_fp)
 
             trimmed_forward_fastq_fp = os.path.join(
@@ -201,11 +223,52 @@ class Pipeline:
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
 
-        run_cmd([
-            'pear',
+        for forward_fastq_fp in get_forward_fastq_files(input_dir=input_dir):
+            reverse_fastq_fp = get_associated_reverse_fastq_fp(forward_fp=forward_fastq_fp)
 
-        ])
+            # decompress fastq files because PEAR can't cope
+            forward_fastq_uncompressed_fp = os.path.join(
+                output_dir,
+                os.path.basename(forward_fastq_fp)[:-3]
+            )
+            with gzip.open(forward_fastq_fp, 'rt') as src, open(forward_fastq_uncompressed_fp, 'wt') as dst:
+                shutil.copyfileobj(fsrc=src, fdst=dst)
 
+            reverse_fastq_uncompressed_fp = os.path.join(
+                output_dir,
+                os.path.basename(reverse_fastq_fp)[:-3]
+            )
+            with gzip.open(reverse_fastq_fp, 'rt') as src, open(reverse_fastq_uncompressed_fp, 'wt') as dst:
+                shutil.copyfileobj(fsrc=src, fdst=dst)
+
+            joined_fastq_basename = re.sub(
+                string=os.path.basename(forward_fastq_uncompressed_fp),
+                pattern=r'_([0R]1)',
+                repl=lambda m: '_joined'.format(m.group(1))
+            )[:-6]
+            joined_fastq_fp_prefix = os.path.join(output_dir, joined_fastq_basename)
+            log.info('writing joined paired-end reads to "%s"', joined_fastq_fp_prefix)
+            run_cmd([
+                'pear',
+                '-f', forward_fastq_uncompressed_fp,
+                '-r', reverse_fastq_uncompressed_fp,
+                '-o', joined_fastq_fp_prefix,
+                '--min-overlap', str(self.pear_min_overlap),
+                '--max-assembly-length', str(self.pear_max_assembly_length),
+                '--min-assembly-length', str(self.pear_min_assembly_length),
+                '-j', str(self.core_count)
+            ])
+
+            os.remove(forward_fastq_uncompressed_fp)
+            os.remove(reverse_fastq_uncompressed_fp)
+
+            pear_output_file_glob = joined_fastq_fp_prefix + '.*.fastq'
+            pear_output_files = glob.glob(pear_output_file_glob)
+            for pear_output_fp in pear_output_files:
+                with open(pear_output_fp, 'rt') as src, gzip.open(pear_output_fp + '.gz', 'wt') as dst:
+                    log.info('compressing PEAR output "%s"', pear_output_fp)
+                    shutil.copyfileobj(fsrc=src, fdst=dst)
+                os.remove(pear_output_fp)
 
         return output_dir
 
@@ -272,16 +335,36 @@ def create_output_dir(output_dir_name, parent_dir=None, input_dir=None):
     return output_dir
 
 
+def get_forward_fastq_files(input_dir):
+    log = logging.getLogger(name=__name__)
+    input_glob = os.path.join(input_dir, '*_?1*.fastq.gz')
+    log.info('searcing for forward read files with glob "%s"', input_glob)
+    forward_fastq_files = glob.glob(input_glob)
+    if len(forward_fastq_files) == 0:
+        raise Exception('found no forward reads from glob "{}"'.format(input_glob))
+    return forward_fastq_files
+
+
+def get_associated_reverse_fastq_fp(forward_fp):
+    forward_input_dir, forward_basename = os.path.split(forward_fp)
+    reverse_fastq_basename = re.sub(
+        string=forward_basename,
+        pattern=r'_([0R])1',
+        repl=lambda m: '_{}2'.format(m.group(1)))
+    reverse_fastq_fp = os.path.join(forward_input_dir, reverse_fastq_basename)
+    return reverse_fastq_fp
+
+
 def run_cmd(cmd_line_list, **kwargs):
     log = logging.getLogger(name=__name__)
     try:
-        log.debug('executing "%s"', ' '.join((str(x) for x in cmd_line_list)))
+        log.info('executing "%s"', ' '.join((str(x) for x in cmd_line_list)))
         output = subprocess.run(
             cmd_line_list,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
             **kwargs)
-        log.debug(output)
+        log.info(output)
         return output
     except subprocess.CalledProcessError as c:
         logging.exception(c)
