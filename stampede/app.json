@@ -86,9 +86,9 @@
       }
     },
     {
-      "id": "min_overlap",
+      "id": "cutadapt_minimum_length",
       "value": {
-        "default": 200,
+        "default": 100,
         "required": true,
         "type": "number",
         "visible": true
@@ -96,9 +96,9 @@
       "semantics": {
       },
       "details": {
-        "argument": "--min-overlap",
-        "description": "minimum overlap",
-        "label": "minimum overlap",
+        "argument": "--cutadapt-min-length",
+        "description": "minimum length for cutadapt",
+        "label": "cutadapt minimum length",
         "showArgument": true
       }
     }
