@@ -50,9 +50,6 @@ From: ubuntu:latest
    rm /tmp/vsearch.tar.gz
    mv $APP_DIR/vsearch-2.4.3-linux-x86_64 $APP_DIR/vsearch
    VSEARCH_PATH=$APP_DIR/vsearch/bin
-   PATH=$VSEARCH_PATH:$PATH
-   echo "installed vsearch at $VSEARCH_PATH"
-   echo "  PATH=$PATH"
 
    # add environment variables to /environment file
    echo "\nexport PATH=$PEAR_PATH:$USEARCH_PATH:$VSEARCH_PATH:\$PATH" >> /environment
