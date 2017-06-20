@@ -31,9 +31,11 @@ From: ubuntu:latest
    cd $APP_DIR
    wget https://sco.h-its.org/exelixis/web/software/pear/files/pear-0.9.10-bin-64.tar.gz
    tar xvf pear-0.9.10-bin-64.tar.gz
-   cd pear-0.9.10-bin-64
+   rm pear-0.9.10-bin-64.tar.gz
    mv pear-0.9.10-bin-64 pear
-   PEAR_PATH=`pwd`
+   cd pear
+   mv pear-0.9.10-bin-64 pear
+   PEAR_PATH=$APP_DIR/pear
 
    # install usearch
    USEARCH_PATH=$APP_DIR/usearch
