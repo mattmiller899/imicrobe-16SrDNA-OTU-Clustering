@@ -10,7 +10,7 @@ fi
 # that prevents a Python virtual environment from being created
 # in a host directory
 
-/usr/bin/python3 -m venv ~/venv/${VENV_NAME}
+python3 -m venv ~/venv/${VENV_NAME}
 source ~/venv/${VENV_NAME}/bin/activate
 pip install --upgrade pip
 pip install -e .[test]
