@@ -13,4 +13,8 @@ fi
 python3 -m venv ~/venv/${VENV_NAME}
 source ~/venv/${VENV_NAME}/bin/activate
 pip install --upgrade pip
+
+# install numpy explicitly or biom-format will not install
+pip install numpy
+
 pip install -e .[test]
