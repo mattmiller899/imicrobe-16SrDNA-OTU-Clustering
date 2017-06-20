@@ -1,14 +1,16 @@
 #!/bin/bash
 
-if [ -d "~/venv/16SrDNA" ]; then
-  rm -rf "~/venv/16SrDNA"
+VENV_NAME=16SrDNA
+
+if [ -d "~/venv/${VENV_NAME}" ]; then
+  rm -rf "~/venv/${VENV_NAME}"
 fi
 
 # there is a problem with VirtualBox shared filesystems
 # that prevents a Python virtual environment from being created
 # in a host directory
 
-/usr/bin/python3 -m venv ~/venv/16SrDNA
-source ~/venv/16SrDNA/bin/activate
+/usr/bin/python3 -m venv ~/venv/${VENV_NAME}
+source ~/venv/${VENV_NAME}/bin/activate
 pip install --upgrade pip
 pip install -e .[test]
