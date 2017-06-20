@@ -249,7 +249,7 @@ class Pipeline:
             joined_fastq_fp_prefix = os.path.join(output_dir, joined_fastq_basename)
             log.info('writing joined paired-end reads to "%s"', joined_fastq_fp_prefix)
             run_cmd([
-                'pear',
+                '/app/pear/pear',
                 '-f', forward_fastq_uncompressed_fp,
                 '-r', reverse_fastq_uncompressed_fp,
                 '-o', joined_fastq_fp_prefix,
