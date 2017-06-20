@@ -12,7 +12,7 @@ logging.basicConfig(level=logging.DEBUG)
 def get_pipeline(work_dir='/work_dir'):
     return pipeline.Pipeline(
         work_dir=work_dir, core_count=1,
-        cutadapt_script_name='cutadapt', cutadapt_min_length=100,
+        cutadapt_script_name='cutadapt3', cutadapt_min_length=100,
         forward_primer='ATTAGAWACCCVNGTAGTCC', reverse_primer='TTACCGCGGCKGCTGGCAC',
         pear_min_overlap=1, pear_max_assembly_length=270, pear_min_assembly_length=0,
         uchime_ref_db_fp='')

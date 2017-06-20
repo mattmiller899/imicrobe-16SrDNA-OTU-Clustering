@@ -42,7 +42,7 @@ def get_args():
     arg_parser.add_argument('--uchime-ref-db-fp', default='/cluster_16S/pr2/pr2_gb203_version_4.5.fasta',
                             help='database for vsearch --uchime_ref')
 
-    arg_parser.add_argument('--cutadapt-script-name', default='cutadapt',
+    arg_parser.add_argument('--cutadapt-script-name', default='cutadapt3',
                             help='cutadapt or cutadapt3')
     arg_parser.add_argument('--cutadapt-min-length', required=True, type=int,
                             help='min_length for cutadapt')
