@@ -12,7 +12,8 @@ logging.basicConfig(level=logging.DEBUG)
 def get_pipeline(work_dir='/work_dir'):
     return pipeline.Pipeline(
         work_dir=work_dir, core_count=1,
-        cutadapt_script_name='cutadapt3', cutadapt_min_length=100,
+        cutadapt_min_length=100,
+        vsearch_filter_maxee=1, vsearch_filter_trunclen=252,
         forward_primer='ATTAGAWACCCVNGTAGTCC', reverse_primer='TTACCGCGGCKGCTGGCAC',
         pear_min_overlap=1, pear_max_assembly_length=270, pear_min_assembly_length=0,
         uchime_ref_db_fp='')
@@ -37,7 +38,7 @@ def test_create_output_dir__parent_dir(fs):
 def test_step_01__text_input():
     with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
 
-        write_forward_reverse_read_files(input_dir=input_dir, compress=False)
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fastq', compress=False)
         output_dir = get_pipeline(work_dir=work_dir).step_01_copy_and_compress(input_dir=input_dir)
 
         assert os.path.exists(output_dir)
@@ -58,7 +59,7 @@ def test_step_01__text_input():
 def test_step_01__compressed_input():
     with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
 
-        write_forward_reverse_read_files(input_dir=input_dir, compress=True)
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fastq', compress=True)
         output_dir = get_pipeline(work_dir=work_dir).step_01_copy_and_compress(input_dir=input_dir)
 
         assert os.path.exists(output_dir)
@@ -78,7 +79,7 @@ def test_step_01__compressed_input():
 
 def test_step_02():
     with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
-        write_forward_reverse_read_files(input_dir=input_dir)
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fastq')
         output_dir = get_pipeline(work_dir=work_dir).step_02_adjust_headers(input_dir=input_dir)
 
         assert output_dir == os.path.join(work_dir, 'step_02_adjust_headers')
@@ -103,7 +104,7 @@ def test_step_02():
 
 def test_step_03():
     with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
-        write_forward_reverse_read_files(input_dir=input_dir)
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fastq')
         assert len(os.listdir(input_dir)) == 2
 
         output_dir = get_pipeline(work_dir=work_dir).step_03_remove_primers(input_dir=input_dir)
@@ -119,7 +120,7 @@ def test_step_03():
 
 def test_step_04():
     with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
-        write_forward_reverse_read_files(input_dir=input_dir)
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fastq')
         assert len(os.listdir(input_dir)) == 2
 
         output_dir = get_pipeline(work_dir=work_dir).step_04_merge_forward_reverse_reads_with_pear(
@@ -137,9 +138,44 @@ def test_step_04():
         assert output_file_list[3] == 'input_file_joined.unassembled.reverse.fastq.gz'
 
 
+def test_step_04_vsearch():
+    with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.assembled.fastq')
+        assert len(os.listdir(input_dir)) == 2
+
+        output_dir = get_pipeline(work_dir=work_dir).step_04_merge_forward_reverse_reads_with_vsearch(
+            input_dir=input_dir
+        )
+
+        assert output_dir == os.path.join(work_dir, 'step_04_merge_forward_reverse_reads_with_vsearch')
+        assert os.path.exists(output_dir)
+
+        output_file_list = sorted(os.listdir(output_dir))
+        assert len(output_file_list) == 1
+        assert output_file_list[0] == 'input_file_joined.assembled.fastq.gz'
+
+
+def test_step_05():
+    with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.joined.assembled.fastq')
+        assert len(os.listdir(input_dir)) == 2
+
+        output_dir = get_pipeline(work_dir=work_dir).step_05_qc_reads_with_vsearch(
+            input_dir=input_dir
+        )
+
+        assert output_dir == os.path.join(work_dir, 'step_05_qc_reads_with_vsearch')
+        assert os.path.exists(output_dir)
+
+        output_file_list = sorted(os.listdir(output_dir))
+        assert len(output_file_list) == 2
+        assert output_file_list[0] == 'input_file_01.joined.assembled.ee1trunc252.fastq.gz'
+        assert output_file_list[1] == 'input_file_02.joined.assembled.ee1trunc252.fastq.gz'
+
+
 def test_pipeline():
     with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
-        write_forward_reverse_read_files(input_dir=input_dir)
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fastq')
 
         output_dir_list = get_pipeline(work_dir=work_dir).run(input_dir=input_dir)
 
@@ -174,10 +210,10 @@ GGGGGGGGFGGFDFCFEGGGGGGGGG7FFCEFEFGE@FE9CFC9EFFFC<EFFGDGGGGGGGE:EF?FFGGGG9AFF8F;
 '''
 
 
-def write_forward_reverse_read_files(input_dir, compress=True):
+def write_forward_reverse_read_files(input_dir, suffix='', compress=True):
     log = logging.getLogger(name=__name__)
-    input_01_fp = os.path.join(input_dir, 'input_file_01.fastq')
-    input_02_fp = os.path.join(input_dir, 'input_file_02.fastq')
+    input_01_fp = os.path.join(input_dir, 'input_file_01{}'.format(suffix))
+    input_02_fp = os.path.join(input_dir, 'input_file_02{}'.format(suffix))
 
     if compress:
         input_01_fp = input_01_fp + '.gz'
