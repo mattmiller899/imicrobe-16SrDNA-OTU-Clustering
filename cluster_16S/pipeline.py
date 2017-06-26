@@ -42,8 +42,6 @@ def get_args():
     arg_parser.add_argument('--uchime-ref-db-fp', default='/cluster_16S/pr2/pr2_gb203_version_4.5.fasta',
                             help='database for vsearch --uchime_ref')
 
-    arg_parser.add_argument('--cutadapt-script-name', default='cutadapt3',
-                            help='cutadapt or cutadapt3')
     arg_parser.add_argument('--cutadapt-min-length', required=True, type=int,
                             help='min_length for cutadapt')
 
@@ -54,6 +52,11 @@ def get_args():
     arg_parser.add_argument('--pear-min-assembly-length', required=True, type=int,
                             help='-m/--min-assembly-length for pear')
 
+    arg_parser.add_argument('--vsearch-filter-maxee', required=True, type=int,
+                            help='fastq_maxee for vsearch')
+    arg_parser.add_argument('--vsearch-filter-trunclen', required=True, type=int,
+                            help='fastq_trunclen for vsearch')
+
     args = arg_parser.parse_args()
     return args
 
@@ -62,15 +65,15 @@ class Pipeline:
     def __init__(self,
                  work_dir,
                  core_count,
-                 cutadapt_script_name, cutadapt_min_length,
+                 cutadapt_min_length,
                  forward_primer, reverse_primer,
                  pear_min_overlap, pear_max_assembly_length, pear_min_assembly_length,
+                 vsearch_filter_maxee, vsearch_filter_trunclen,
                  uchime_ref_db_fp):
 
         self.work_dir = work_dir
         self.core_count = core_count
 
-        self.cutadapt_script_name = cutadapt_script_name
         self.cutadapt_min_length = cutadapt_min_length
         self.forward_primer = forward_primer
         self.reverse_primer = reverse_primer
@@ -79,6 +82,9 @@ class Pipeline:
         self.pear_max_assembly_length = pear_max_assembly_length
         self.pear_min_assembly_length = pear_min_assembly_length
 
+        self.vsearch_filter_maxee = vsearch_filter_maxee
+        self.vsearch_filter_trunclen = vsearch_filter_trunclen
+
         self.uchime_ref_db_fp = uchime_ref_db_fp
 
     def run(self, input_dir):
@@ -86,7 +92,7 @@ class Pipeline:
         output_dir_list.append(self.step_01_copy_and_compress(input_dir=input_dir))
         ##output_dir_list.append(self.step_02_adjust_headers(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_03_remove_primers(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_04_merge_forward_reverse_reads_with_pear(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_04_merge_forward_reverse_reads_with_vsearch(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_05_qc_reads_with_vsearch(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_06_combine_runs(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_07_dereplicate_sort_remove_low_abundance_reads(input_dir=output_dir_list[-1]))
@@ -184,6 +190,9 @@ class Pipeline:
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
 
+        cutadapt_script_name = os.environ.get('CUTADAPT', default='cutadapt')
+        log.info('using cutadapt "%s"', cutadapt_script_name)
+
         for forward_fastq_fp in get_forward_fastq_files(input_dir=input_dir):
             log.info('removing forward primers from file "%s"', forward_fastq_fp)
             forward_fastq_basename = os.path.basename(forward_fastq_fp)
@@ -205,7 +214,7 @@ class Pipeline:
                     repl=lambda m: '_trimmed_{}2'.format(m.group(1))))
 
             run_cmd([
-                self.cutadapt_script_name,
+                cutadapt_script_name,
                 '-a', self.forward_primer,
                 '-A', self.reverse_primer,
                 '-o', trimmed_forward_fastq_fp,
@@ -218,10 +227,46 @@ class Pipeline:
         return output_dir
 
 
+    def step_04_merge_forward_reverse_reads_with_vsearch(self, input_dir):
+        function_name = sys._getframe().f_code.co_name
+        log = logging.getLogger(name=function_name)
+        output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
+
+        vsearch_executable_fp = os.environ.get('VSEARCH', 'vsearch')
+        log.info('vsearch executable: "%s"', vsearch_executable_fp)
+
+        for forward_fastq_fp in get_forward_fastq_files(input_dir=input_dir):
+            reverse_fastq_fp = get_associated_reverse_fastq_fp(forward_fp=forward_fastq_fp)
+
+            joined_fastq_basename = re.sub(
+                string=os.path.basename(forward_fastq_fp),
+                pattern=r'_([0R]1)',
+                repl=lambda m: '_joined'.format(m.group(1))
+            )
+            joined_fastq_fp = os.path.join(output_dir, joined_fastq_basename)
+            log.info('writing joined paired-end reads to "%s"', joined_fastq_fp)
+
+            run_cmd([
+                vsearch_executable_fp,
+                '--fastq_mergepairs', forward_fastq_fp,
+                '--reverse', reverse_fastq_fp,
+                '--fastqout', joined_fastq_fp,
+                '--fastq_minovlen', str(self.pear_min_overlap),
+                '--fastq_maxlen', str(self.pear_max_assembly_length),
+                '--fastq_minlen', str(self.pear_min_assembly_length),
+                '--threads', str(self.core_count)
+            ])
+
+            return output_dir
+
+
     def step_04_merge_forward_reverse_reads_with_pear(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
+
+        pear_executable_fp = os.environ.get('PEAR', 'pear')
+        log.info('PEAR executable: "%s"', pear_executable_fp)
 
         for forward_fastq_fp in get_forward_fastq_files(input_dir=input_dir):
             reverse_fastq_fp = get_associated_reverse_fastq_fp(forward_fp=forward_fastq_fp)
@@ -249,7 +294,7 @@ class Pipeline:
             joined_fastq_fp_prefix = os.path.join(output_dir, joined_fastq_basename)
             log.info('writing joined paired-end reads to "%s"', joined_fastq_fp_prefix)
             run_cmd([
-                '/app/pear/pear',
+                pear_executable_fp,
                 '-f', forward_fastq_uncompressed_fp,
                 '-r', reverse_fastq_uncompressed_fp,
                 '-o', joined_fastq_fp_prefix,
@@ -277,6 +322,31 @@ class Pipeline:
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
+
+        vsearch_executable_fp = os.environ.get('VSEARCH', 'vsearch')
+        log.info('vsearch executable: "%s"', vsearch_executable_fp)
+
+        input_files_glob = os.path.join(input_dir, '*.assembled.fastq.gz')
+        log.info('input file glob: "%s"', input_files_glob)
+        for assembled_fastq_fp in glob.glob(input_files_glob):
+            input_file_basename = os.path.basename(assembled_fastq_fp)
+            output_file_basename = re.sub(
+                string=input_file_basename,
+                pattern='\.assembled\.fastq\.gz',
+                repl='.assembled.ee{}trunc{}.fastq.gz'.format(self.vsearch_filter_maxee, self.vsearch_filter_trunclen)
+            )
+            output_fastq_fp = os.path.join(output_dir, output_file_basename)
+
+            log.info('filtering "%s"', assembled_fastq_fp)
+            run_cmd([
+                vsearch_executable_fp,
+                '-fastq_filter', assembled_fastq_fp,
+                '-fastqout', output_fastq_fp,
+                '-fastq_maxee', str(self.vsearch_filter_maxee),
+                '-fastq_trunclen', str(self.vsearch_filter_trunclen),
+                '-threads', str(self.core_count)
+            ])
+
         return output_dir
 
 
