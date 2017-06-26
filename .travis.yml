@@ -19,6 +19,9 @@ install:
 script:
   - pwd
   - ls -l
+  - export CUTADAPT=cutadapt3
+  - export PEAR=/app/pear/pear
+  - export VSEARCH=/app/vsearch/bin/vsearch
   - singularity exec singularity/imicrobe-16SrDNA-OTU-Clustering.img py.test test/
 notifications:
   email:
