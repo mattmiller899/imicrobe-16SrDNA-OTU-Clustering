@@ -101,6 +101,40 @@
         "label": "cutadapt minimum length",
         "showArgument": true
       }
+    },
+    {
+      "id": "vsearch_filter_maxee",
+      "value": {
+        "default": 1,
+        "required": true,
+        "type": "number",
+        "visible": true
+      },
+      "semantics": {
+      },
+      "details": {
+        "argument": "--vsearch-filter-maxee",
+        "description": "max quality score",
+        "label": "maximum quality score",
+        "showArgument": true
+      }
+    },
+    {
+      "id": "vsearch_filter_trunclen",
+      "value": {
+        "default": 252,
+        "required": true,
+        "type": "number",
+        "visible": true
+      },
+      "semantics": {
+      },
+      "details": {
+        "argument": "--vsearch-filter-trunclen",
+        "description": "truncate length",
+        "label": "vsearch truncation length",
+        "showArgument": true
+      }
     }
   ],
   "outputs": []
