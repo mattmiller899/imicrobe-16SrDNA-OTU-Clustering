@@ -20,7 +20,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
     args = get_args()
 
-    Pipeline().run(input_dir=args.input_dir)
+    Pipeline(**args.__dict__).run(input_dir=args.input_dir)
     return 0
 
 
@@ -28,7 +28,7 @@ def get_args():
     arg_parser = argparse.ArgumentParser()
     arg_parser.add_argument('-i', '--input-dir', default='.',
                             help='path to the input directory')
-    arg_parser.add_argument('-o', '--output-dir', default='.',
+    arg_parser.add_argument('-w', '--work-dir', default='.',
                             help='path to the output directory')
 
     arg_parser.add_argument('-c', '--core-count', default=1, type=int,
@@ -69,7 +69,8 @@ class Pipeline:
                  forward_primer, reverse_primer,
                  pear_min_overlap, pear_max_assembly_length, pear_min_assembly_length,
                  vsearch_filter_maxee, vsearch_filter_trunclen,
-                 uchime_ref_db_fp):
+                 uchime_ref_db_fp,
+                 **kwargs):
 
         self.work_dir = work_dir
         self.core_count = core_count
@@ -92,7 +93,8 @@ class Pipeline:
         output_dir_list.append(self.step_01_copy_and_compress(input_dir=input_dir))
         ##output_dir_list.append(self.step_02_adjust_headers(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_03_remove_primers(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_04_merge_forward_reverse_reads_with_vsearch(input_dir=output_dir_list[-1]))
+        self.step_04_merge_forward_reverse_reads_with_vsearch(input_dir=output_dir_list[-1])
+        output_dir_list.append(self.step_04_merge_forward_reverse_reads_with_pear(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_05_qc_reads_with_vsearch(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_06_combine_runs(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_07_dereplicate_sort_remove_low_abundance_reads(input_dir=output_dir_list[-1]))
@@ -241,23 +243,51 @@ class Pipeline:
             joined_fastq_basename = re.sub(
                 string=os.path.basename(forward_fastq_fp),
                 pattern=r'_([0R]1)',
-                repl=lambda m: '_joined'.format(m.group(1))
+                repl=lambda m: '_merged'.format(m.group(1))
             )
-            joined_fastq_fp = os.path.join(output_dir, joined_fastq_basename)
+            joined_fastq_fp = os.path.join(output_dir, joined_fastq_basename)[:-3]
             log.info('writing joined paired-end reads to "%s"', joined_fastq_fp)
+
+            notmerged_fwd_fastq_basename = re.sub(
+                string=os.path.basename(forward_fastq_fp),
+                pattern=r'_([0R]1)',
+                repl=lambda m: '_notmerged_fwd'.format(m.group(1))
+            )
+            notmerged_fwd_fastq_fp = os.path.join(output_dir, notmerged_fwd_fastq_basename)[:-3]
+
+            notmerged_rev_fastq_basename = re.sub(
+                string=os.path.basename(forward_fastq_fp),
+                pattern=r'_([0R]1)',
+                repl=lambda m: '_notmerged_rev'.format(m.group(1))
+            )
+            notmerged_rev_fastq_fp = os.path.join(output_dir, notmerged_rev_fastq_basename)[:-3]
 
             run_cmd([
                 vsearch_executable_fp,
                 '--fastq_mergepairs', forward_fastq_fp,
                 '--reverse', reverse_fastq_fp,
                 '--fastqout', joined_fastq_fp,
+                '--fastqout_notmerged_fwd', notmerged_fwd_fastq_fp,
+                '--fastqout_notmerged_rev', notmerged_rev_fastq_fp,
                 '--fastq_minovlen', str(self.pear_min_overlap),
                 '--fastq_maxlen', str(self.pear_max_assembly_length),
                 '--fastq_minlen', str(self.pear_min_assembly_length),
                 '--threads', str(self.core_count)
             ])
 
+            self.gzip_files(os.path.join(output_dir, '*.fastq'))
+
             return output_dir
+
+
+    def gzip_files(self, file_glob):
+        log = logging.getLogger(name=self.__class__.__name__)
+        file_list = glob.glob(file_glob)
+        for fp in file_list:
+            with open(fp, 'rt') as src, gzip.open(fp + '.gz', 'wt') as dst:
+                log.info('compressing file "%s"', fp)
+                shutil.copyfileobj(fsrc=src, fdst=dst)
+            os.remove(fp)
 
 
     def step_04_merge_forward_reverse_reads_with_pear(self, input_dir):
@@ -289,7 +319,7 @@ class Pipeline:
             joined_fastq_basename = re.sub(
                 string=os.path.basename(forward_fastq_uncompressed_fp),
                 pattern=r'_([0R]1)',
-                repl=lambda m: '_joined'.format(m.group(1))
+                repl=lambda m: '_merged'.format(m.group(1))
             )[:-6]
             joined_fastq_fp_prefix = os.path.join(output_dir, joined_fastq_basename)
             log.info('writing joined paired-end reads to "%s"', joined_fastq_fp_prefix)
@@ -307,13 +337,7 @@ class Pipeline:
             os.remove(forward_fastq_uncompressed_fp)
             os.remove(reverse_fastq_uncompressed_fp)
 
-            pear_output_file_glob = joined_fastq_fp_prefix + '.*.fastq'
-            pear_output_files = glob.glob(pear_output_file_glob)
-            for pear_output_fp in pear_output_files:
-                with open(pear_output_fp, 'rt') as src, gzip.open(pear_output_fp + '.gz', 'wt') as dst:
-                    log.info('compressing PEAR output "%s"', pear_output_fp)
-                    shutil.copyfileobj(fsrc=src, fdst=dst)
-                os.remove(pear_output_fp)
+            self.gzip_files(joined_fastq_fp_prefix + '.*.fastq')
 
         return output_dir
 
@@ -326,14 +350,14 @@ class Pipeline:
         vsearch_executable_fp = os.environ.get('VSEARCH', 'vsearch')
         log.info('vsearch executable: "%s"', vsearch_executable_fp)
 
-        input_files_glob = os.path.join(input_dir, '*.assembled.fastq.gz')
+        input_files_glob = os.path.join(input_dir, '*.fastq.gz')
         log.info('input file glob: "%s"', input_files_glob)
         for assembled_fastq_fp in glob.glob(input_files_glob):
             input_file_basename = os.path.basename(assembled_fastq_fp)
             output_file_basename = re.sub(
                 string=input_file_basename,
-                pattern='\.assembled\.fastq\.gz',
-                repl='.assembled.ee{}trunc{}.fastq.gz'.format(self.vsearch_filter_maxee, self.vsearch_filter_trunclen)
+                pattern='\.fastq\.gz',
+                repl='.ee{}trunc{}.fastq.gz'.format(self.vsearch_filter_maxee, self.vsearch_filter_trunclen)
             )
             output_fastq_fp = os.path.join(output_dir, output_file_basename)
 
