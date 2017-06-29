@@ -1,3 +1,6 @@
+mock_run3/*
+notebooks/*
+
 .cache
 *.egg-info
 *.idea
