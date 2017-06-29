@@ -4,6 +4,7 @@
 import argparse
 import glob
 import gzip
+import itertools
 import logging
 import os
 import re
@@ -11,9 +12,6 @@ import shutil
 import subprocess
 import sys
 import traceback
-
-from Bio.Alphabet import generic_dna
-from Bio import SeqIO
 
 
 def main():
@@ -57,8 +55,15 @@ def get_args():
     arg_parser.add_argument('--vsearch-filter-trunclen', required=True, type=int,
                             help='fastq_trunclen for vsearch')
 
+    arg_parser.add_argument('--vsearch-derep-minuniquesize', required=True, type=int,
+                            help='minimum unique size for vsearch -derep_fulllength')
+
     args = arg_parser.parse_args()
     return args
+
+
+class PipelineException(BaseException):
+    pass
 
 
 class Pipeline:
@@ -69,6 +74,7 @@ class Pipeline:
                  forward_primer, reverse_primer,
                  pear_min_overlap, pear_max_assembly_length, pear_min_assembly_length,
                  vsearch_filter_maxee, vsearch_filter_trunclen,
+                 vsearch_derep_minuniquesize,
                  uchime_ref_db_fp,
                  **kwargs):
 
@@ -86,22 +92,28 @@ class Pipeline:
         self.vsearch_filter_maxee = vsearch_filter_maxee
         self.vsearch_filter_trunclen = vsearch_filter_trunclen
 
+        self.vsearch_derep_minuniquesize = vsearch_derep_minuniquesize
+
         self.uchime_ref_db_fp = uchime_ref_db_fp
+
+        self.vsearch_executable_fp = os.environ.get('VSEARCH', 'vsearch')
+
+
 
     def run(self, input_dir):
         output_dir_list = []
         output_dir_list.append(self.step_01_copy_and_compress(input_dir=input_dir))
         ##output_dir_list.append(self.step_02_adjust_headers(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_03_remove_primers(input_dir=output_dir_list[-1]))
-        self.step_04_merge_forward_reverse_reads_with_vsearch(input_dir=output_dir_list[-1])
-        output_dir_list.append(self.step_04_merge_forward_reverse_reads_with_pear(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_05_qc_reads_with_vsearch(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_06_combine_runs(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_07_dereplicate_sort_remove_low_abundance_reads(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_08_cluster_97_percent(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_09_reference_based_chimera_detection(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_10_map_raw_reads_to_otus(input_dir=output_dir_list[-1]))
-        output_dir_list.append(self.step_11_write_otu_table(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_02_remove_primers(input_dir=output_dir_list[-1]))
+        self.step_03_merge_forward_reverse_reads_with_vsearch(input_dir=output_dir_list[-1])
+        output_dir_list.append(self.step_03_merge_forward_reverse_reads_with_pear(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_04_qc_reads_with_vsearch(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_05_combine_runs(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_06_dereplicate_sort_remove_low_abundance_reads(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_07_cluster_97_percent(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_08_reference_based_chimera_detection(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_09_map_raw_reads_to_otus(input_dir=output_dir_list[-1]))
+        output_dir_list.append(self.step_10_write_otu_table(input_dir=output_dir_list[-1]))
 
         return output_dir_list
 
@@ -133,61 +145,7 @@ class Pipeline:
         return output_dir
 
 
-    def step_02_adjust_headers(self, input_dir):
-        function_name = sys._getframe().f_code.co_name
-        log = logging.getLogger(name=function_name)
-        output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
-
-        input_file_glob = os.path.join(input_dir, '*.fastq.gz')
-        log.debug('input file glob: "%s"', input_file_glob)
-        input_file_list = glob.glob(input_file_glob)
-        log.info('input files: %s', input_file_list)
-
-        # the FASTQ headers look like this:
-        #   R3-16S-mockE-1__HWI-M01380:86:000000000-ALK4C:1:1101:17273:1842 1:N:0
-        # where 1:N:0 is the 'description', not part of the id
-        fastq_header_pattern = re.compile(
-            r'(?P<id>'
-                r'^(?P<run>R\d+)'                     #  R3
-                r'-(?P<locus>(16S|ITS))'              # -16S
-                r'-(?P<sample_name>(mockE-\d+))'      # -mockE-1
-                r'__(?P<unknown_1>[\w\d\-]+)'         # __HWI-M01380
-                r':(?P<unknown_2>(\d+))'              # :86
-                r':(?P<unknown_3>([\d\w\-]+))'        # :000000000-ALK4C
-                r':(?P<unknown_4>(\d+))'              # :1
-                r':(?P<unknown_5>(\d+))'              # :1101
-                r':(?P<unknown_6>(\d+))'              # :17273
-                r':(?P<unknown_7>(\d+))'              # :1842
-            r')$')
-
-        for input_fp in input_file_list:
-            input_basename = os.path.basename(input_fp)
-            output_16S_fp = os.path.join(output_dir, re.sub(
-                string=input_basename, pattern='\.fastq\.gz$', repl='_16S.fastq.gz'))
-            output_ITS_fp = os.path.join(output_dir, re.sub(
-                string=input_basename, pattern='\.fastq\.gz$', repl='_ITS.fastq.gz'))
-            log.info('16S output file: %s', output_16S_fp)
-            log.info('ITS output file: %s', output_ITS_fp)
-
-            with gzip.open(input_fp, 'rt') as input_file, \
-                gzip.open(output_16S_fp, 'wt') as output_16S_file, gzip.open(output_ITS_fp, 'wt') as output_ITS_file:
-                    output_locus_file = { '16S': output_16S_file, 'ITS': output_ITS_file }
-                    for i, fastq_record in enumerate(SeqIO.parse(input_file, format='fastq', alphabet=generic_dna)):
-                        m = fastq_header_pattern.match(fastq_record.id)
-                        if m is None:
-                            raise ValueError(
-                                'in file "%s", id "%s" for record %d could not be parsed',
-                                input_fp, fastq_record.id, i)
-                        else:
-                            log.debug('original ID : %s', fastq_record.id)
-                            fastq_record.id = '@{sample_name}__{run}'.format(**m.groupdict())
-                            log.debug('new ID      : %s', fastq_record.id)
-                            SeqIO.write(fastq_record, output_locus_file[m.group('locus')], 'fastq')
-
-        return output_dir
-
-
-    def step_03_remove_primers(self, input_dir):
+    def step_02_remove_primers(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
@@ -229,7 +187,7 @@ class Pipeline:
         return output_dir
 
 
-    def step_04_merge_forward_reverse_reads_with_vsearch(self, input_dir):
+    def step_03_merge_forward_reverse_reads_with_vsearch(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
@@ -275,22 +233,12 @@ class Pipeline:
                 '--threads', str(self.core_count)
             ])
 
-            self.gzip_files(os.path.join(output_dir, '*.fastq'))
+            gzip_files(os.path.join(output_dir, '*.fastq'))
 
             return output_dir
 
 
-    def gzip_files(self, file_glob):
-        log = logging.getLogger(name=self.__class__.__name__)
-        file_list = glob.glob(file_glob)
-        for fp in file_list:
-            with open(fp, 'rt') as src, gzip.open(fp + '.gz', 'wt') as dst:
-                log.info('compressing file "%s"', fp)
-                shutil.copyfileobj(fsrc=src, fdst=dst)
-            os.remove(fp)
-
-
-    def step_04_merge_forward_reverse_reads_with_pear(self, input_dir):
+    def step_03_merge_forward_reverse_reads_with_pear(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
@@ -337,33 +285,31 @@ class Pipeline:
             os.remove(forward_fastq_uncompressed_fp)
             os.remove(reverse_fastq_uncompressed_fp)
 
-            self.gzip_files(joined_fastq_fp_prefix + '.*.fastq')
+            gzip_files(joined_fastq_fp_prefix + '.*.fastq')
 
         return output_dir
 
 
-    def step_05_qc_reads_with_vsearch(self, input_dir):
+    def step_04_qc_reads_with_vsearch(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
 
-        vsearch_executable_fp = os.environ.get('VSEARCH', 'vsearch')
-        log.info('vsearch executable: "%s"', vsearch_executable_fp)
-
-        input_files_glob = os.path.join(input_dir, '*.fastq.gz')
+        input_files_glob = os.path.join(input_dir, '*.assembled.fastq.gz')
         log.info('input file glob: "%s"', input_files_glob)
         for assembled_fastq_fp in glob.glob(input_files_glob):
             input_file_basename = os.path.basename(assembled_fastq_fp)
             output_file_basename = re.sub(
                 string=input_file_basename,
                 pattern='\.fastq\.gz',
-                repl='.ee{}trunc{}.fastq.gz'.format(self.vsearch_filter_maxee, self.vsearch_filter_trunclen)
+                repl='.ee{}trunc{}.fastq.gz'.format(self.vsearch_filter_maxee, self.vsearch_filter_trunclen)[:-3]
             )
             output_fastq_fp = os.path.join(output_dir, output_file_basename)
 
+            log.info('vsearch executable: "%s"', self.vsearch_executable_fp)
             log.info('filtering "%s"', assembled_fastq_fp)
             run_cmd([
-                vsearch_executable_fp,
+                self.vsearch_executable_fp,
                 '-fastq_filter', assembled_fastq_fp,
                 '-fastqout', output_fastq_fp,
                 '-fastq_maxee', str(self.vsearch_filter_maxee),
@@ -371,45 +317,96 @@ class Pipeline:
                 '-threads', str(self.core_count)
             ])
 
+        gzip_files(file_glob=os.path.join(output_dir, '*.assembled.*.fastq'))
+
         return output_dir
 
 
-    def step_06_combine_runs(self, input_dir):
+    def step_05_combine_runs(self, input_dir):
+        function_name = sys._getframe().f_code.co_name
+        log = logging.getLogger(name=function_name)
+        output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
+
+        log.info('input directory listing:\n\t%s', '\n\t'.join(os.listdir(input_dir)))
+        input_files_glob = os.path.join(input_dir, '*.assembled.*.fastq.gz')
+        log.info('input file glob: "%s"', input_files_glob)
+        input_fp_list = sorted(glob.glob(input_files_glob))
+        log.info('combining files:\n\t%s', '\n\t'.join(input_fp_list))
+
+        output_file_name = get_combined_file_name(input_fp_list=input_fp_list)
+
+        log.info('combined file: "%s"', output_file_name)
+        output_fp = os.path.join(output_dir, output_file_name)
+        with gzip.open(output_fp, 'wt') as output_file:
+            for input_fp in input_fp_list:
+                with gzip.open(input_fp, 'rt') as input_file:
+                    shutil.copyfileobj(fsrc=input_file, fdst=output_file)
+
+        return output_dir
+
+
+    def step_06_dereplicate_sort_remove_low_abundance_reads(self, input_dir):
+        function_name = sys._getframe().f_code.co_name
+        log = logging.getLogger(name=function_name)
+        output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
+
+        log.info('input directory listing:\n\t%s', '\n\t'.join(os.listdir(input_dir)))
+        input_files_glob = os.path.join(input_dir, '*.assembled.*.fastq.gz')
+        log.info('input file glob: "%s"', input_files_glob)
+        input_fp_list = sorted(glob.glob(input_files_glob))
+
+        for input_fp in input_fp_list:
+            output_fp = os.path.join(
+                output_dir,
+                re.sub(
+                    string=os.path.basename(input_fp),
+                    pattern='\.fastq\.gz$',
+                    repl='.derepmin{}.fastq'.format(self.vsearch_derep_minuniquesize)))
+
+            uc_fp = os.path.join(
+                output_dir,
+                re.sub(
+                    string=os.path.basename(input_fp),
+                    pattern='\.fastq\.gz$',
+                    repl='.derepmin{}.txt'.format(self.vsearch_derep_minuniquesize)))
+
+            run_cmd([
+                self.vsearch_executable_fp,
+                '-derep_fulllength', input_fp,
+                '-output', output_fp,
+                '-uc', uc_fp,
+                '-sizeout',
+                '-minuniquesize', str(self.vsearch_derep_minuniquesize),
+                '-threads', str(self.core_count)
+            ])
+
+        gzip_files(os.path.join(output_dir, '*.fastq'))
+
+        return output_dir
+
+
+    def step_07_cluster_97_percent(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
         return output_dir
 
 
-    def step_07_dereplicate_sort_remove_low_abundance_reads(self, input_dir):
+    def step_08_reference_based_chimera_detection(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
         return output_dir
 
 
-    def step_08_cluster_97_percent(self, input_dir):
+    def step_09_map_raw_reads_to_otus(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
         return output_dir
 
 
-    def step_09_reference_based_chimera_detection(self, input_dir):
-        function_name = sys._getframe().f_code.co_name
-        log = logging.getLogger(name=function_name)
-        output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
-        return output_dir
-
-
-    def step_10_map_raw_reads_to_otus(self, input_dir):
-        function_name = sys._getframe().f_code.co_name
-        log = logging.getLogger(name=function_name)
-        output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
-        return output_dir
-
-
-    def step_11_write_otu_table(self, input_dir):
+    def step_10_write_otu_table(self, input_dir):
         function_name = sys._getframe().f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
@@ -431,11 +428,11 @@ def create_output_dir(output_dir_name, parent_dir=None, input_dir=None):
 
 def get_forward_fastq_files(input_dir):
     log = logging.getLogger(name=__name__)
-    input_glob = os.path.join(input_dir, '*_?1*.fastq.gz')
+    input_glob = os.path.join(input_dir, '*_[R0]1*.fastq*')
     log.info('searcing for forward read files with glob "%s"', input_glob)
     forward_fastq_files = glob.glob(input_glob)
     if len(forward_fastq_files) == 0:
-        raise Exception('found no forward reads from glob "{}"'.format(input_glob))
+        raise PipelineException('found no forward reads from glob "{}"'.format(input_glob))
     return forward_fastq_files
 
 
@@ -447,6 +444,35 @@ def get_associated_reverse_fastq_fp(forward_fp):
         repl=lambda m: '_{}2'.format(m.group(1)))
     reverse_fastq_fp = os.path.join(forward_input_dir, reverse_fastq_basename)
     return reverse_fastq_fp
+
+
+def gzip_files(file_glob):
+    log = logging.getLogger(name=__name__)
+    file_list = glob.glob(file_glob)
+    for fp in file_list:
+        with open(fp, 'rt') as src, gzip.open(fp + '.gz', 'wt') as dst:
+            log.info('compressing file "%s"', fp)
+            shutil.copyfileobj(fsrc=src, fdst=dst)
+        os.remove(fp)
+
+
+def get_combined_file_name(input_fp_list):
+    if len(input_fp_list) == 0:
+        raise PipelineException('get_combined_file_name called with empty input')
+
+    def sorted_unique_elements(elements):
+        return sorted(set(elements))
+
+    return '_'.join(                                     # 'Mock_Run3_Run4_V4.fastq.gz'
+        itertools.chain.from_iterable(                   # ['Mock', 'Run3', 'Run4', 'V4.fastq.gz']
+            map(                                         # [{'Mock'}, {'Run3', 'Run4'}, {'V4.fastq.gz'}]
+                sorted_unique_elements,
+                zip(                                     # [('Mock', 'Mock'), ('Run4', 'Run3'), ('V4.fastq.gz', 'V4.fastq.gz')]
+                    *[                                   # [('Mock', 'Run3', 'V4.fastq.gz'), ('Mock', 'Run4', 'V4.fastq.gz')]
+                        os.path.basename(fp).split('_')  # ['Mock', 'Run3', 'V4.fastq.gz']
+                        for fp                           # '/some/data/Mock_Run3_V4.fastq.gz'
+                        in input_fp_list                 # ['/input/data/Mock_Run3_V4.fastq.gz', '/input_data/Mock_Run4_V4.fastq.gz']
+                    ]))))
 
 
 def run_cmd(cmd_line_list, **kwargs):
