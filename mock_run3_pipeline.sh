@@ -1,6 +1,6 @@
 #!/bin/bash
 
-rm -rf mock_run3/pipeline_output
+#rm -rf mock_run3/pipeline_output
 mkdir -p mock_run3/pipeline_output
 
 time pipeline \
@@ -11,6 +11,7 @@ time pipeline \
   --pear-min-overlap 200\
   --pear-max-assembly-length 270 \
   --pear-min-assembly-length 220 \
+  --uchime-ref-db-fp ~/host/project/silva/SILVA_128_SSURef_Nr99_tax_silva.fasta.gz \
   --vsearch-filter-maxee 1 \
   --vsearch-filter-trunclen 245 \
   --vsearch-derep-minuniquesize 3
