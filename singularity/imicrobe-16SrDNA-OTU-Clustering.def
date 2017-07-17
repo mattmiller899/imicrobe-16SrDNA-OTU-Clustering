@@ -6,6 +6,7 @@ From: jkhurwitzlab/base:base
     export CUTADAPT=cutadapt3
     export PEAR=/app/pear
     export VSEARCH=/app/vsearch/bin/vsearch
+    export USEARCH=/app/usearch/usearch
     pipeline $@
 
 %setup
@@ -50,6 +51,12 @@ From: jkhurwitzlab/base:base
    make install
    rm -rf vsearch-2.4.3
    VSEARCH_PATH=$APP_DIR/vsearch/bin
+
+   # install SILVA SSU
+   cd $APP_DIR
+   mkdir silva
+   cd silva
+   wget https://www.arb-silva.de/fileadmin/silva_databases/release_128/Exports/SILVA_128_SSURef_Nr99_tax_silva.fasta.gz
 
    # add environment variables to /environment file
    echo "\nexport PATH=$PEAR_PATH:$USEARCH_PATH:$VSEARCH_PATH:\$PATH" >> /environment
