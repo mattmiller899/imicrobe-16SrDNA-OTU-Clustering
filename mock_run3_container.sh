@@ -1,6 +1,6 @@
 #!/bin/bash
 
-rm -rf mock_run3/container_output
+#rm -rf mock_run3/container_output
 mkdir mock_run3/container_output
 
 time singularity run singularity/imicrobe-16SrDNA-OTU-Clustering.img \
