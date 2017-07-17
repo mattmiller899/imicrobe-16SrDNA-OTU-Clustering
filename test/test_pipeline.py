@@ -178,10 +178,28 @@ def test_step_06():
 
         output_file_list = sorted(os.listdir(output_dir))
         assert len(output_file_list) == 4
-        assert output_file_list[0] == 'input_file_01_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.fastq.gz'
+        assert output_file_list[0] == 'input_file_01_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.fasta.gz'
         assert output_file_list[1] == 'input_file_01_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.txt'
-        assert output_file_list[2] == 'input_file_02_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.fastq.gz'
+        assert output_file_list[2] == 'input_file_02_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.fasta.gz'
         assert output_file_list[3] == 'input_file_02_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.txt'
+
+
+def test_step_07():
+    with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fasta')
+        assert len(os.listdir(input_dir)) == 2
+
+        output_dir = get_pipeline(work_dir=work_dir).step_07_cluster_97_percent(input_dir=input_dir)
+
+        assert output_dir == os.path.join(work_dir, 'step_07_cluster_97_percent')
+        assert os.path.exists(output_dir)
+
+        output_file_list = sorted(os.listdir(output_dir))
+        assert len(output_file_list) == 4
+        assert output_file_list[0] == 'input_file_01.rad3.fasta'
+        assert output_file_list[1] == 'input_file_01.rad3.txt'
+        assert output_file_list[2] == 'input_file_02.rad3.fasta'
+        assert output_file_list[3] == 'input_file_02.rad3.txt'
 
 
 def test_pipeline():
