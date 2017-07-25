@@ -46,7 +46,26 @@
         "description": "Directory of forward and reverse reads",
         "label": "Input directory (forward AND reverse reads)",
         "argument": "",
-        "showArgument": true
+        "showArgument": false
+      }
+    },
+    {
+      "id": "OUTPUT_DIR",
+      "value": {
+        "default": "this is needed",
+        "required": true,
+        "visible": true
+      },
+      "semantics": {
+        "fileTypes": [
+          "raw-0"
+        ]
+      },
+      "details": {
+        "description": "Directory for output",
+        "label": "Output directory",
+        "argument": "",
+        "showArgument": false
       }
     }
   ],

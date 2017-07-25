@@ -2,8 +2,8 @@
 
 module load singularity
 
-#INPUT_DIR=$1
-#OUTPUT_DIR=$2
+INPUT_DIR=$1
+OUTPUT_DIR=$2
 
 echo "starting directory : `pwd`"
 echo "`ls -l`"
