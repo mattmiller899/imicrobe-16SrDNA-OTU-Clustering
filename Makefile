@@ -32,9 +32,12 @@ container:
 	sudo singularity bootstrap singularity/$(APP).img singularity/$(APP).def
 
 iput-container:
-	iput -K singularity/$(APP).img
+	rm -f singularity/$(APP).img.xz
+	xz --compress --force --keep singularity/$(APP).img
+	iput -fKP singularity/$(APP).img.xz
 
 iget-container:
-	iget -K $(APP).img
-	mv $(APP).img stampede/
-
+	iget -fKP $(APP).img.xz
+	xz --decompress --force --keep $(APP).img.xz
+	mv $(APP).img singularity/
+	mv $(APP).img.xz stampede/

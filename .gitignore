@@ -8,6 +8,7 @@ notebooks/*
 
 # Singularity image
 *.img
+*.xz
 
 *.pl
 *.fastq*

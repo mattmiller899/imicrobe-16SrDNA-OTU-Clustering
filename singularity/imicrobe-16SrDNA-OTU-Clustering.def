@@ -32,13 +32,13 @@ From: jkhurwitzlab/base:base
    mkdir -p $APP_DIR
    cd $APP_DIR
 
-   # install usearch
-   USEARCH_PATH=$APP_DIR/usearch
-   mkdir -p $USEARCH_PATH
-   cd $USEARCH_PATH
-   wget http://drive5.com/cgi-bin/upload3.py?license=2017060409023223112 -O usearch
-   chmod a+x usearch
-   ls -l
+   ## install usearch
+   #USEARCH_PATH=$APP_DIR/usearch
+   #mkdir -p $USEARCH_PATH
+   #cd $USEARCH_PATH
+   #wget http://drive5.com/cgi-bin/upload3.py?license=2017060409023223112 -O usearch
+   #chmod a+x usearch
+   #ls -l
 
    # build vsearch from source
    cd $APP_DIR

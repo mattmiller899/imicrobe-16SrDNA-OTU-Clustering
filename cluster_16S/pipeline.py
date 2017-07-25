@@ -13,9 +13,10 @@ import logging
 import os
 import re
 import shutil
-import subprocess
 import sys
-import traceback
+
+from cluster_16S.pipeline_util import create_output_dir, get_forward_fastq_files, get_associated_reverse_fastq_fp, \
+    gzip_files, ungzip_files, run_cmd, PipelineException
 
 
 def main():
@@ -64,10 +65,6 @@ def get_args():
 
     args = arg_parser.parse_args()
     return args
-
-
-class PipelineException(BaseException):
-    pass
 
 
 class Pipeline:
@@ -553,63 +550,6 @@ class Pipeline:
     #    return output_dir
 
 
-def create_output_dir(output_dir_name, parent_dir=None, input_dir=None):
-    if parent_dir is not None and input_dir is None:
-        pass
-    elif input_dir is not None and parent_dir is None:
-        parent_dir, _ = os.path.split(input_dir)
-    else:
-        raise ValueError('exactly one of parent_dir and input_dir must be None')
-
-    log = logging.getLogger(name=__name__)
-    output_dir = os.path.join(parent_dir, output_dir_name)
-    if os.path.exists(output_dir):
-        log.warning('directory "%s" already exists', output_dir)
-    else:
-        os.mkdir(output_dir)
-    return output_dir
-
-
-def get_forward_fastq_files(input_dir):
-    log = logging.getLogger(name=__name__)
-    input_glob = os.path.join(input_dir, '*_[R0]1*.fastq*')
-    log.info('searching for forward read files with glob "%s"', input_glob)
-    forward_fastq_files = glob.glob(input_glob)
-    if len(forward_fastq_files) == 0:
-        raise PipelineException('found no forward reads from glob "{}"'.format(input_glob))
-    return forward_fastq_files
-
-
-def get_associated_reverse_fastq_fp(forward_fp):
-    forward_input_dir, forward_basename = os.path.split(forward_fp)
-    reverse_fastq_basename = re.sub(
-        string=forward_basename,
-        pattern=r'_([0R])1',
-        repl=lambda m: '_{}2'.format(m.group(1)))
-    reverse_fastq_fp = os.path.join(forward_input_dir, reverse_fastq_basename)
-    return reverse_fastq_fp
-
-
-def gzip_files(file_list):
-    log = logging.getLogger(name=__name__)
-    for fp in file_list:
-        with open(fp, 'rt') as src, gzip.open(fp + '.gz', 'wt') as dst:
-            log.info('compressing file "%s"', fp)
-            shutil.copyfileobj(fsrc=src, fdst=dst)
-        os.remove(fp)
-
-
-def ungzip_files(*fp_list, target_dir):
-    uncompressed_fps = []
-    for fp in fp_list:
-        # remove '.gz' from the file path
-        uncompressed_fp = os.path.join(target_dir, os.path.basename(fp)[:-3])
-        uncompressed_fps.append(uncompressed_fp)
-        with gzip.open(fp, 'rt') as src, open(uncompressed_fp, 'wt') as dst:
-            shutil.copyfileobj(fsrc=src, fdst=dst)
-    return uncompressed_fps
-
-
 def get_combined_file_name(input_fp_list):
     if len(input_fp_list) == 0:
         raise PipelineException('get_combined_file_name called with empty input')
@@ -627,31 +567,6 @@ def get_combined_file_name(input_fp_list):
                         for fp                           # '/some/data/Mock_Run3_V4.fastq.gz'
                         in input_fp_list                 # ['/input/data/Mock_Run3_V4.fastq.gz', '/input_data/Mock_Run4_V4.fastq.gz']
                     ]))))
-
-
-def run_cmd(cmd_line_list, **kwargs):
-    log = logging.getLogger(name=__name__)
-    try:
-        log.info('executing "%s"', ' '.join((str(x) for x in cmd_line_list)))
-        output = subprocess.run(
-            cmd_line_list,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            **kwargs)
-        log.info(output)
-        return output
-    except subprocess.CalledProcessError as c:
-        logging.exception(c)
-        print(c.message)
-        print(c.cmd)
-        print(c.output)
-        raise c
-    except Exception as e:
-        logging.exception(e)
-        print('blarg!')
-        print(e)
-        traceback.print_exc()
-        raise e
 
 
 if __name__ == '__main__':

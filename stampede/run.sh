@@ -17,16 +17,23 @@ export LAUNCHER_RMI=SLURM
 
 export LAUNCHER_JOB_FILE=`pwd`/launcher_jobfile_${SLURM_JOB_ID}
 echo ${LAUNCHER_JOB_FILE}
-#singularity exec imicrobe-JUITS16S.img write_launcher_job_file \
-#   -i ${INPUT_DIR} \
-#   -j ${LAUNCHER_JOB_FILE} \
-#   -w ${OUTPUT_DIR}/work-${SLURM_JOB_ID}-{prefix} \
-#   --forward-primer $FORWARD_PRIMER \
-#   --reverse-primer $REVERSE_PRIMER \
-#   --min-overlap $MIN_OVERLAP
 
-sleep 10
-export LAUNCHER_PPN=2
+xz --decompress imicrobe-16SrDNA-OTU-Clustering.img.xz
+
+time singularity run singularity/imicrobe-16SrDNA-OTU-Clustering.img \
+  --input-dir ${INPUT_DIR} \
+  --work-dir ${OUTPUT_DIR} \
+  --core-count 2 \
+  --cutadapt-min-length 100 \
+  --pear-min-overlap 200\
+  --pear-max-assembly-length 270 \
+  --pear-min-assembly-length 220 \
+  --vsearch-filter-maxee 1 \
+  --vsearch-filter-trunclen 245 \
+  --vsearch-derep-minuniquesize 3
+
+#sleep 10
+#export LAUNCHER_PPN=2
 
 #$LAUNCHER_DIR/paramrun
 echo "Ended launcher"

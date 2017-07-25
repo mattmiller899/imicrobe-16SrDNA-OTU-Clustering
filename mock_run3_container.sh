@@ -4,8 +4,8 @@
 mkdir mock_run3/container_output
 
 time singularity run singularity/imicrobe-16SrDNA-OTU-Clustering.img \
-  --input-dir ~/host/project/imicrobe/apps/imicrobe-16SrDNA-OTU-Clustering/mock_run3/input \
-  --work-dir ~/host/project/imicrobe/apps/imicrobe-16SrDNA-OTU-Clustering/mock_run3/container_output \
+  --input-dir ./mock_run3/input \
+  --work-dir ./mock_run3/container_output \
   --core-count 2 \
   --cutadapt-min-length 100 \
   --pear-min-overlap 200\

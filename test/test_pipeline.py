@@ -4,7 +4,7 @@ import os.path
 import tempfile
 
 import cluster_16S.pipeline as pipeline
-
+import cluster_16S.pipeline_util
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -23,7 +23,7 @@ def get_pipeline(work_dir='/work_dir'):
 def test_create_output_dir__input_dir(fs):
     input_dir = '/input_dir'
     fs.CreateDirectory(input_dir)
-    output_dir = pipeline.create_output_dir(input_dir=input_dir, output_dir_name='output_dir')
+    output_dir = cluster_16S.pipeline_util.create_output_dir(input_dir=input_dir, output_dir_name='output_dir')
     assert output_dir == '/output_dir'
     assert os.path.exists(output_dir)
 
@@ -31,7 +31,7 @@ def test_create_output_dir__input_dir(fs):
 def test_create_output_dir__parent_dir(fs):
     parent_dir = '/parent_dir'
     fs.CreateDirectory(parent_dir)
-    output_dir = pipeline.create_output_dir(parent_dir=parent_dir, output_dir_name='output_dir')
+    output_dir = cluster_16S.pipeline_util.create_output_dir(parent_dir=parent_dir, output_dir_name='output_dir')
     assert output_dir == '/parent_dir/output_dir'
     assert os.path.exists(output_dir)
 
