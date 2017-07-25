@@ -20,7 +20,9 @@ echo ${LAUNCHER_JOB_FILE}
 
 xz --decompress imicrobe-16SrDNA-OTU-Clustering.img.xz
 
-time singularity run singularity/imicrobe-16SrDNA-OTU-Clustering.img \
+echo "`ls -l`"
+
+time singularity run imicrobe-16SrDNA-OTU-Clustering.img \
   --input-dir ${INPUT_DIR} \
   --work-dir ${OUTPUT_DIR} \
   --core-count 2 \
