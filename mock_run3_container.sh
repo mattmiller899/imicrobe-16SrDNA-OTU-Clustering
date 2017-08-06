@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#rm -rf mock_run3/container_output
-mkdir mock_run3/container_output
+#rm -rf mock_run3/output_container
+mkdir mock_run3/output_container
 
 time singularity run singularity/imicrobe-16SrDNA-OTU-Clustering.img \
   --input-dir ./mock_run3/input \
-  --work-dir ./mock_run3/container_output \
+  --work-dir ./mock_run3/output_container \
   --core-count 2 \
   --cutadapt-min-length 100 \
   --pear-min-overlap 200\

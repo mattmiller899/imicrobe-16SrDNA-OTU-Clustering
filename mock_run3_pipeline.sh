@@ -1,11 +1,11 @@
 #!/bin/bash
 
-#rm -rf mock_run3/pipeline_output
-mkdir -p mock_run3/pipeline_output
+#rm -rf mock_run3/output_pipeline
+mkdir -p mock_run3/output_pipeline
 
 time pipeline \
   --input-dir ~/host/project/imicrobe/apps/imicrobe-16SrDNA-OTU-Clustering/mock_run3/input \
-  --work-dir ~/host/project/imicrobe/apps/imicrobe-16SrDNA-OTU-Clustering/mock_run3/pipeline_output \
+  --work-dir ~/host/project/imicrobe/apps/imicrobe-16SrDNA-OTU-Clustering/mock_run3/output_pipeline \
   --core-count 2 \
   --cutadapt-min-length 100 \
   --pear-min-overlap 200\
@@ -15,4 +15,3 @@ time pipeline \
   --vsearch-filter-maxee 1 \
   --vsearch-filter-trunclen 245 \
   --vsearch-derep-minuniquesize 3
-

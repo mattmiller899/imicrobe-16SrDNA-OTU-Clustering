@@ -30,6 +30,7 @@ container:
 	rm -f singularity/$(APP).img
 	sudo singularity create --size 2048 singularity/$(APP).img
 	sudo singularity bootstrap singularity/$(APP).img singularity/$(APP).def
+	sudo chown --reference=singularity/${APP}.def singularity/${APP}.img
 
 iput-container:
 	rm -f singularity/$(APP).img.xz
@@ -41,3 +42,9 @@ iget-container:
 	xz --decompress --force --keep $(APP).img.xz
 	mv $(APP).img singularity/
 	mv $(APP).img.xz stampede/
+
+lytic-rsync-dry-run:
+	rsync -n -arvzP --delete --exclude-from=rsync.exclude -e "ssh -A -t hpc.arizona.edu ssh -A -t lytic" ./ :project/imicrobe/apps/imicrobe-16SrDNA-OTU-Clustering
+
+lytic-rsync:
+	rsync -arvzP --delete --exclude-from=rsync.exclude -e "ssh -A -t hpc.arizona.edu ssh -A -t lytic" ./ :project/imicrobe/apps/imicrobe-16SrDNA-OTU-Clustering

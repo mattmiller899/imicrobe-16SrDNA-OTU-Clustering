@@ -3,6 +3,8 @@ import logging
 import os.path
 import tempfile
 
+import pytest
+
 import cluster_16S.pipeline as pipeline
 import cluster_16S.pipeline_util
 
@@ -43,16 +45,16 @@ def test_step_01__text_input():
         output_dir = get_pipeline(work_dir=work_dir).step_01_copy_and_compress(input_dir=input_dir)
 
         assert os.path.exists(output_dir)
-        output_file_list = sorted(os.listdir(output_dir))
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
         assert len(output_file_list) == 2
-        assert output_file_list[0] == 'input_file_01.fastq.gz'
-        assert output_file_list[1] == 'input_file_02.fastq.gz'
+        assert output_file_list[0].name == 'input_file_01.fastq.gz'
+        assert output_file_list[1].name == 'input_file_02.fastq.gz'
 
-        output_1_fp = os.path.join(output_dir, output_file_list[0])
+        output_1_fp = os.path.join(output_dir, output_file_list[0].name)
         with gzip.open(output_1_fp, 'rt') as output_1:
             assert output_1.read() == forward_fastq_records
 
-        output_2_fp = os.path.join(output_dir, output_file_list[1])
+        output_2_fp = os.path.join(output_dir, output_file_list[1].name)
         with gzip.open(output_2_fp, 'rt') as output_2:
             assert output_2.read() == reverse_fastq_records
 
@@ -64,16 +66,16 @@ def test_step_01__compressed_input():
         output_dir = get_pipeline(work_dir=work_dir).step_01_copy_and_compress(input_dir=input_dir)
 
         assert os.path.exists(output_dir)
-        output_file_list = sorted(os.listdir(output_dir))
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
         assert len(output_file_list) == 2
-        assert output_file_list[0] == 'input_file_01.fastq.gz'
-        assert output_file_list[1] == 'input_file_02.fastq.gz'
+        assert output_file_list[0].name == 'input_file_01.fastq.gz'
+        assert output_file_list[1].name == 'input_file_02.fastq.gz'
 
-        output_1_fp = os.path.join(output_dir, output_file_list[0])
+        output_1_fp = os.path.join(output_dir, output_file_list[0].name)
         with gzip.open(output_1_fp, 'rt') as output_1:
             assert output_1.read() == forward_fastq_records
 
-        output_2_fp = os.path.join(output_dir, output_file_list[1])
+        output_2_fp = os.path.join(output_dir, output_file_list[1].name)
         with gzip.open(output_2_fp, 'rt') as output_2:
             assert output_2.read() == reverse_fastq_records
 
@@ -88,10 +90,11 @@ def test_step_02():
         assert output_dir == os.path.join(work_dir, 'step_02_remove_primers')
         assert os.path.exists(output_dir)
 
-        output_file_list = sorted(os.listdir(output_dir))
-        assert len(output_file_list) == 2
-        assert output_file_list[0] == 'input_file_trimmed_01.fastq.gz'
-        assert output_file_list[1] == 'input_file_trimmed_02.fastq.gz'
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
+        assert len(output_file_list) == 3
+        assert output_file_list[0].name == 'input_file_trimmed_01.fastq.gz'
+        assert output_file_list[1].name == 'input_file_trimmed_02.fastq.gz'
+        assert output_file_list[2].name == 'log'
 
 
 def test_step_03_pear():
@@ -106,12 +109,13 @@ def test_step_03_pear():
         assert output_dir == os.path.join(work_dir, 'step_03_merge_forward_reverse_reads_with_pear')
         assert os.path.exists(output_dir)
 
-        output_file_list = sorted(os.listdir(output_dir))
-        assert len(output_file_list) == 4
-        assert output_file_list[0] == 'input_file_merged.assembled.fastq.gz'
-        assert output_file_list[1] == 'input_file_merged.discarded.fastq.gz'
-        assert output_file_list[2] == 'input_file_merged.unassembled.forward.fastq.gz'
-        assert output_file_list[3] == 'input_file_merged.unassembled.reverse.fastq.gz'
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
+        assert len(output_file_list) == 5
+        assert output_file_list[0].name == 'input_file_merged.assembled.fastq.gz'
+        assert output_file_list[1].name == 'input_file_merged.discarded.fastq.gz'
+        assert output_file_list[2].name == 'input_file_merged.unassembled.forward.fastq.gz'
+        assert output_file_list[3].name == 'input_file_merged.unassembled.reverse.fastq.gz'
+        assert output_file_list[4].name == 'log'
 
 
 def test_step_03_vsearch():
@@ -126,11 +130,12 @@ def test_step_03_vsearch():
         assert output_dir == os.path.join(work_dir, 'step_03_merge_forward_reverse_reads_with_vsearch')
         assert os.path.exists(output_dir)
 
-        output_file_list = sorted(os.listdir(output_dir))
-        assert len(output_file_list) == 3
-        assert output_file_list[0] == 'input_file_merged.fastq.gz'
-        assert output_file_list[1] == 'input_file_notmerged_fwd.fastq.gz'
-        assert output_file_list[2] == 'input_file_notmerged_rev.fastq.gz'
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
+        assert len(output_file_list) == 4
+        assert output_file_list[0].name == 'input_file_merged.fastq.gz'
+        assert output_file_list[1].name == 'input_file_notmerged_fwd.fastq.gz'
+        assert output_file_list[2].name == 'input_file_notmerged_rev.fastq.gz'
+        assert output_file_list[3].name == 'log'
 
 
 def test_step_04():
@@ -145,10 +150,11 @@ def test_step_04():
         assert output_dir == os.path.join(work_dir, 'step_04_qc_reads_with_vsearch')
         assert os.path.exists(output_dir)
 
-        output_file_list = sorted(os.listdir(output_dir))
-        assert len(output_file_list) == 2
-        assert output_file_list[0] == 'input_file_01.assembled.ee1trunc200.fastq.gz'
-        assert output_file_list[1] == 'input_file_02.assembled.ee1trunc200.fastq.gz'
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
+        assert len(output_file_list) == 3
+        assert output_file_list[0].name == 'input_file_01.assembled.ee1trunc200.fastq.gz'
+        assert output_file_list[1].name == 'input_file_02.assembled.ee1trunc200.fastq.gz'
+        assert output_file_list[2].name == 'log'
 
 
 def test_step_05():
@@ -161,9 +167,9 @@ def test_step_05():
         assert output_dir == os.path.join(work_dir, 'step_05_combine_runs')
         assert os.path.exists(output_dir)
 
-        output_file_list = os.listdir(output_dir)
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
         assert len(output_file_list) == 1
-        assert output_file_list[0] == 'input_file_01_02_trimmed_merged_V4.assembled.ee1trunc200.fastq.gz'
+        assert output_file_list[0].name == 'input_file_01_02_trimmed_merged_V4.assembled.ee1trunc200.fastq.gz'
 
 
 def test_step_06():
@@ -176,12 +182,13 @@ def test_step_06():
         assert output_dir == os.path.join(work_dir, 'step_06_dereplicate_sort_remove_low_abundance_reads')
         assert os.path.exists(output_dir)
 
-        output_file_list = sorted(os.listdir(output_dir))
-        assert len(output_file_list) == 4
-        assert output_file_list[0] == 'input_file_01_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.fasta.gz'
-        assert output_file_list[1] == 'input_file_01_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.txt'
-        assert output_file_list[2] == 'input_file_02_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.fasta.gz'
-        assert output_file_list[3] == 'input_file_02_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.txt'
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
+        assert len(output_file_list) == 5
+        assert output_file_list[0].name == 'input_file_01_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.fasta.gz'
+        assert output_file_list[1].name == 'input_file_01_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.txt'
+        assert output_file_list[2].name == 'input_file_02_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.fasta.gz'
+        assert output_file_list[3].name == 'input_file_02_trimmed_merged_V4.assembled.ee1trunc200.derepmin3.txt'
+        assert output_file_list[4].name == 'log'
 
 
 def test_step_07():
@@ -194,14 +201,34 @@ def test_step_07():
         assert output_dir == os.path.join(work_dir, 'step_07_cluster_97_percent')
         assert os.path.exists(output_dir)
 
-        output_file_list = sorted(os.listdir(output_dir))
-        assert len(output_file_list) == 4
-        assert output_file_list[0] == 'input_file_01.rad3.fasta'
-        assert output_file_list[1] == 'input_file_01.rad3.txt'
-        assert output_file_list[2] == 'input_file_02.rad3.fasta'
-        assert output_file_list[3] == 'input_file_02.rad3.txt'
+        output_file_list = cluster_16S.pipeline_util.get_sorted_file_list(output_dir)
+        assert len(output_file_list) == 5
+        assert output_file_list[0].name == 'input_file_01.rad3.fasta'
+        assert output_file_list[1].name == 'input_file_01.rad3.txt'
+        assert output_file_list[2].name == 'input_file_02.rad3.fasta'
+        assert output_file_list[3].name == 'input_file_02.rad3.txt'
+        assert output_file_list[4].name == 'log'
 
 
+@pytest.mark.skip()
+def test_step_08():
+    with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fasta')
+
+        output_dir = get_pipeline(work_dir=work_dir).step_08_reference_based_chimera_detection(input_dir=input_dir)
+        assert output_dir == os.path.join(work_dir, 'step_08_reference_based_chimera_detection')
+
+
+@pytest.mark.skip()
+def test_step_09():
+    with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
+        write_forward_reverse_read_files(input_dir=input_dir, suffix='.fasta')
+
+        output_dir = get_pipeline(work_dir=work_dir).step_09_create_otu_table(input_dir=input_dir)
+        assert output_dir == os.path.join(work_dir, 'step_09_create_otu_table')
+
+
+@pytest.mark.skip()
 def test_pipeline():
     with tempfile.TemporaryDirectory() as input_dir, tempfile.TemporaryDirectory() as work_dir:
         write_forward_reverse_read_files(input_dir=input_dir, suffix='.fastq')

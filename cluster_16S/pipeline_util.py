@@ -1,6 +1,7 @@
 import glob
 import gzip
 import logging
+from operator import attrgetter
 import os
 import re
 import shutil
@@ -10,6 +11,20 @@ import traceback
 
 class PipelineException(BaseException):
     pass
+
+
+def get_sorted_file_list(dir_path):
+    return tuple(
+        sorted(
+            [
+                entry
+                for entry
+                in os.scandir(dir_path)
+                if entry.is_file()
+            ],
+        key=attrgetter('name')
+        )
+    )
 
 
 def create_output_dir(output_dir_name, parent_dir=None, input_dir=None):
@@ -69,16 +84,20 @@ def ungzip_files(*fp_list, target_dir):
     return uncompressed_fps
 
 
-def run_cmd(cmd_line_list, **kwargs):
+def run_cmd(cmd_line_list, log_file, **kwargs):
     log = logging.getLogger(name=__name__)
     try:
-        log.info('executing "%s"', ' '.join((str(x) for x in cmd_line_list)))
-        output = subprocess.run(
-            cmd_line_list,
-            stderr=subprocess.STDOUT,
-            universal_newlines=True,
-            **kwargs)
-        log.info(output)
+        with open(log_file, 'at') as log_file:
+            cmd_line_str = ' '.join((str(x) for x in cmd_line_list))
+            log.info('executing "%s"', cmd_line_str)
+            log_file.write('executing "{}"'.format(cmd_line_str))
+            output = subprocess.run(
+                cmd_line_list,
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+                **kwargs)
+            log.info(output)
         return output
     except subprocess.CalledProcessError as c:
         logging.exception(c)

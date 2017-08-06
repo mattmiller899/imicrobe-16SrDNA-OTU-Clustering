@@ -69,15 +69,16 @@ def get_args():
 
 class Pipeline:
     def __init__(self,
-                 work_dir,
-                 core_count,
-                 cutadapt_min_length,
-                 forward_primer, reverse_primer,
-                 pear_min_overlap, pear_max_assembly_length, pear_min_assembly_length,
-                 vsearch_filter_maxee, vsearch_filter_trunclen,
-                 vsearch_derep_minuniquesize,
-                 uchime_ref_db_fp,
-                 **kwargs):
+            work_dir,
+            core_count,
+            cutadapt_min_length,
+            forward_primer, reverse_primer,
+            pear_min_overlap, pear_max_assembly_length, pear_min_assembly_length,
+            vsearch_filter_maxee, vsearch_filter_trunclen,
+            vsearch_derep_minuniquesize,
+            uchime_ref_db_fp,
+            **kwargs  # allows some command line arguments to be ignored
+    ):
 
         self.work_dir = work_dir
         self.core_count = core_count
@@ -102,9 +103,8 @@ class Pipeline:
         self.usearch_executable_fp = os.environ.get('USEARCH', default='usearch')
         self.vsearch_executable_fp = os.environ.get('VSEARCH', default='vsearch')
 
-
     def run(self, input_dir):
-        output_dir_list = []
+        output_dir_list = list()
         output_dir_list.append(self.step_01_copy_and_compress(input_dir=input_dir))
         output_dir_list.append(self.step_02_remove_primers(input_dir=output_dir_list[-1]))
         output_dir_list.append(self.step_03_merge_forward_reverse_reads_with_pear(input_dir=output_dir_list[-1]))
@@ -117,13 +117,11 @@ class Pipeline:
 
         return output_dir_list
 
-
     def initialize_step(self):
         function_name = sys._getframe(1).f_code.co_name
         log = logging.getLogger(name=function_name)
         output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
         return log, output_dir
-
 
     def complete_step(self, log, output_dir):
         output_dir_list = sorted(os.listdir(output_dir))
@@ -131,12 +129,33 @@ class Pipeline:
             raise PipelineException('ERROR: no output files in directory "{}"'.format(output_dir))
         else:
             log.info('output files:\n\t%s', '\n\t'.join(os.listdir(output_dir)))
+            # apply FastQC to all .fastq files
+            fastq_file_list = [
+                os.path.join(output_dir, output_file)
+                for output_file
+                in output_dir_list
+                if re.search(pattern=r'\.fastq(\.gz)?$', string=output_file)
+            ]
 
+            if len(fastq_file_list) == 0:
+                log.info('no .fastq files found in "{}"'.format(output_dir))
+            else:
+                fastqc_output_dir = os.path.join(output_dir, 'fastqc_results')
+                os.makedirs(fastqc_output_dir, exist_ok=True)
+                run_cmd(
+                    [
+                        'fastqc',
+                        '--threads', str(self.core_count),
+                        '--outdir', fastqc_output_dir,
+                        *fastq_file_list
+                    ],
+                    log_file=os.path.join(fastqc_output_dir, 'log')
+                )
 
     def step_01_copy_and_compress(self, input_dir):
         log, output_dir = self.initialize_step()
         if len(os.listdir(output_dir)) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             log.debug('output_dir: %s', output_dir)
 
@@ -161,11 +180,10 @@ class Pipeline:
         self.complete_step(log, output_dir)
         return output_dir
 
-
     def step_02_remove_primers(self, input_dir):
         log, output_dir = self.initialize_step()
         if len(os.listdir(output_dir)) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             log.info('using cutadapt "%s"', self.cutadapt_executable_fp)
 
@@ -190,24 +208,25 @@ class Pipeline:
                         repl=lambda m: '_trimmed_{}2'.format(m.group(1))))
 
                 run_cmd([
-                    self.cutadapt_executable_fp,
-                    '-a', self.forward_primer,
-                    '-A', self.reverse_primer,
-                    '-o', trimmed_forward_fastq_fp,
-                    '-p', trimmed_reverse_fastq_fp,
-                    '-m', str(self.cutadapt_min_length),
-                    forward_fastq_fp,
-                    reverse_fastq_fp
-                ])
+                        self.cutadapt_executable_fp,
+                        '-a', self.forward_primer,
+                        '-A', self.reverse_primer,
+                        '-o', trimmed_forward_fastq_fp,
+                        '-p', trimmed_reverse_fastq_fp,
+                        '-m', str(self.cutadapt_min_length),
+                        forward_fastq_fp,
+                        reverse_fastq_fp
+                    ],
+                    log_file = os.path.join(output_dir, 'log')
+                )
 
-        self.complete_step(log, output_dir)
+                self.complete_step(log, output_dir)
         return output_dir
-
 
     def step_03_merge_forward_reverse_reads_with_vsearch(self, input_dir):
         log, output_dir = self.initialize_step()
         if len(os.listdir(output_dir)) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             log.info('vsearch executable: "%s"', self.vsearch_executable_fp)
 
@@ -237,28 +256,29 @@ class Pipeline:
                 notmerged_rev_fastq_fp = os.path.join(output_dir, notmerged_rev_fastq_basename)[:-3]
 
                 run_cmd([
-                    self.vsearch_executable_fp,
-                    '--fastq_mergepairs', forward_fastq_fp,
-                    '--reverse', reverse_fastq_fp,
-                    '--fastqout', joined_fastq_fp,
-                    '--fastqout_notmerged_fwd', notmerged_fwd_fastq_fp,
-                    '--fastqout_notmerged_rev', notmerged_rev_fastq_fp,
-                    '--fastq_minovlen', str(self.pear_min_overlap),
-                    '--fastq_maxlen', str(self.pear_max_assembly_length),
-                    '--fastq_minlen', str(self.pear_min_assembly_length),
-                    '--threads', str(self.core_count)
-                ])
+                        self.vsearch_executable_fp,
+                        '--fastq_mergepairs', forward_fastq_fp,
+                        '--reverse', reverse_fastq_fp,
+                        '--fastqout', joined_fastq_fp,
+                        '--fastqout_notmerged_fwd', notmerged_fwd_fastq_fp,
+                        '--fastqout_notmerged_rev', notmerged_rev_fastq_fp,
+                        '--fastq_minovlen', str(self.pear_min_overlap),
+                        '--fastq_maxlen', str(self.pear_max_assembly_length),
+                        '--fastq_minlen', str(self.pear_min_assembly_length),
+                        '--threads', str(self.core_count)
+                    ],
+                    log_file = os.path.join(output_dir, 'log')
+                )
 
                 gzip_files(glob.glob(os.path.join(output_dir, '*.fastq')))
 
         self.complete_step(log, output_dir)
         return output_dir
 
-
     def step_03_merge_forward_reverse_reads_with_pear(self, input_dir):
         log, output_dir = self.initialize_step()
         if len(os.listdir(output_dir)) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             log.info('PEAR executable: "%s"', self.pear_executable_fp)
 
@@ -268,7 +288,8 @@ class Pipeline:
                 forward_fastq_fp, reverse_fastq_fp = ungzip_files(
                     compressed_forward_fastq_fp,
                     compressed_reverse_fastq_fp,
-                    target_dir=output_dir)
+                    target_dir=output_dir
+                )
 
                 joined_fastq_basename = re.sub(
                     string=os.path.basename(forward_fastq_fp),
@@ -279,15 +300,17 @@ class Pipeline:
                 log.info('joining paired ends from "%s" and "%s"', forward_fastq_fp, reverse_fastq_fp)
                 log.info('writing joined paired-end reads to "%s"', joined_fastq_fp_prefix)
                 run_cmd([
-                    self.pear_executable_fp,
-                    '-f', forward_fastq_fp,
-                    '-r', reverse_fastq_fp,
-                    '-o', joined_fastq_fp_prefix,
-                    '--min-overlap', str(self.pear_min_overlap),
-                    '--max-assembly-length', str(self.pear_max_assembly_length),
-                    '--min-assembly-length', str(self.pear_min_assembly_length),
-                    '-j', str(self.core_count)
-                ])
+                        self.pear_executable_fp,
+                        '-f', forward_fastq_fp,
+                        '-r', reverse_fastq_fp,
+                        '-o', joined_fastq_fp_prefix,
+                        '--min-overlap', str(self.pear_min_overlap),
+                        '--max-assembly-length', str(self.pear_max_assembly_length),
+                        '--min-assembly-length', str(self.pear_min_assembly_length),
+                        '-j', str(self.core_count)
+                    ],
+                    log_file = os.path.join(output_dir, 'log')
+                )
 
                 # delete the uncompressed input files
                 os.remove(forward_fastq_fp)
@@ -298,11 +321,10 @@ class Pipeline:
         self.complete_step(log, output_dir)
         return output_dir
 
-
     def step_04_qc_reads_with_vsearch(self, input_dir):
         log, output_dir = self.initialize_step()
         if len(os.listdir(output_dir)) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             input_files_glob = os.path.join(input_dir, '*.assembled.fastq.gz')
             log.info('input file glob: "%s"', input_files_glob)
@@ -318,24 +340,25 @@ class Pipeline:
                 log.info('vsearch executable: "%s"', self.vsearch_executable_fp)
                 log.info('filtering "%s"', assembled_fastq_fp)
                 run_cmd([
-                    self.vsearch_executable_fp,
-                    '-fastq_filter', assembled_fastq_fp,
-                    '-fastqout', output_fastq_fp,
-                    '-fastq_maxee', str(self.vsearch_filter_maxee),
-                    '-fastq_trunclen', str(self.vsearch_filter_trunclen),
-                    '-threads', str(self.core_count)
-                ])
+                        self.vsearch_executable_fp,
+                        '-fastq_filter', assembled_fastq_fp,
+                        '-fastqout', output_fastq_fp,
+                        '-fastq_maxee', str(self.vsearch_filter_maxee),
+                        '-fastq_trunclen', str(self.vsearch_filter_trunclen),
+                        '-threads', str(self.core_count)
+                    ],
+                    log_file = os.path.join(output_dir, 'log')
+                )
 
             gzip_files(glob.glob(os.path.join(output_dir, '*.assembled.*.fastq')))
 
         self.complete_step(log, output_dir)
         return output_dir
 
-
     def step_05_combine_runs(self, input_dir):
         log, output_dir = self.initialize_step()
         if len(os.listdir(output_dir)) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             log.info('input directory listing:\n\t%s', '\n\t'.join(os.listdir(input_dir)))
             input_files_glob = os.path.join(input_dir, '*.assembled.*.fastq.gz')
@@ -355,11 +378,10 @@ class Pipeline:
         self.complete_step(log, output_dir)
         return output_dir
 
-
     def step_06_dereplicate_sort_remove_low_abundance_reads(self, input_dir):
         log, output_dir = self.initialize_step()
         if len(os.listdir(output_dir)) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             log.info('input directory listing:\n\t%s', '\n\t'.join(os.listdir(input_dir)))
             input_files_glob = os.path.join(input_dir, '*.assembled.*.fastq.gz')
@@ -382,25 +404,26 @@ class Pipeline:
                         repl='.derepmin{}.txt'.format(self.vsearch_derep_minuniquesize)))
 
                 run_cmd([
-                    self.vsearch_executable_fp,
-                    '-derep_fulllength', input_fp,
-                    '-output', output_fp,
-                    '-uc', uc_fp,
-                    '-sizeout',
-                    '-minuniquesize', str(self.vsearch_derep_minuniquesize),
-                    '-threads', str(self.core_count)
-                ])
+                        self.vsearch_executable_fp,
+                        '-derep_fulllength', input_fp,
+                        '-output', output_fp,
+                        '-uc', uc_fp,
+                        '-sizeout',
+                        '-minuniquesize', str(self.vsearch_derep_minuniquesize),
+                        '-threads', str(self.core_count)
+                    ],
+                    log_file = os.path.join(output_dir, 'log')
+                )
 
             gzip_files(glob.glob(os.path.join(output_dir, '*.fasta')))
 
         self.complete_step(log, output_dir)
         return output_dir
 
-
     def step_07_cluster_97_percent(self, input_dir):
         log, output_dir = self.initialize_step()
         if len(os.listdir(output_dir)) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             # can usearch read gzipped files? no
             input_files_glob = os.path.join(input_dir, '*.fasta.gz')
@@ -429,24 +452,25 @@ class Pipeline:
                 )
 
                 run_cmd([
-                    self.usearch_executable_fp,
-                    '-cluster_otus', input_fp,
-                    '-otus', otu_output_fp,
-                    '-relabel', 'OTU_',
-                    #'-sizeout',
-                    '-uparseout', uparse_output_fp
-                ])
+                        self.usearch_executable_fp,
+                        '-cluster_otus', input_fp,
+                        '-otus', otu_output_fp,
+                        '-relabel', 'OTU_',
+                        # '-sizeout',
+                        '-uparseout', uparse_output_fp
+                    ],
+                    log_file = os.path.join(output_dir, 'log')
+                )
 
                 os.remove(input_fp)
 
         self.complete_step(log, output_dir)
         return output_dir
 
-
     def step_08_reference_based_chimera_detection(self, input_dir):
         log, output_dir = self.initialize_step()
         if len([entry for entry in os.scandir(output_dir) if not entry.name.startswith('.')]) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             input_fps = glob.glob(os.path.join(input_dir, '*.fasta'))
             for input_fp in input_fps:
@@ -465,37 +489,41 @@ class Pipeline:
                         repl='.uchime.fasta'))
 
                 log.info('starting chimera detection on file "%s"', input_fp)
+
+                run_cmd([
+                        self.usearch_executable_fp,
+                        '-uchime2_ref', input_fp,
+                        '-db', self.uchime_ref_db_fp,
+                        '-uchimeout', uchimeout_fp,
+                        '-mode', 'balanced',
+                        '-strand', 'plus',
+                        '-notmatched', notmatched_fp,
+                        '-threads', str(self.core_count)
+                    ],
+                    log_file=os.path.join(output_dir, 'log')
+                )
                 '''
                 run_cmd([
-                    self.usearch_executable_fp,
-                    '-uchime2_ref', input_fp,
-                    '-db', self.uchime_ref_db_fp,
-                    '-uchimeout', uchimeout_fp,
-                    '-mode', 'balanced',
-                    '-strand', 'plus',
-                    '-notmatched', notmatched_fp,
-                    '-threads', str(self.core_count)
-                ])
+                        self.vsearch_executable_fp,
+                        '-uchime_ref', input_fp,
+                        '-db', self.uchime_ref_db_fp,
+                        '-uchimeout', uchimeout_fp,
+                        '-mode', 'balanced',
+                        '-strand', 'plus',
+                        '-notmatched', notmatched_fp,
+                        '-threads', str(self.core_count)
+                    ],
+                    log_file = os.path.join(output_dir, 'log')
+                )
                 '''
-                run_cmd([
-                    self.vsearch_executable_fp,
-                    '-uchime_ref', input_fp,
-                    '-db', self.uchime_ref_db_fp,
-                    '-uchimeout', uchimeout_fp,
-                    '-mode', 'balanced',
-                    '-strand', 'plus',
-                    '-notmatched', notmatched_fp,
-                    '-threads', str(self.core_count)
-                ])
 
         self.complete_step(log, output_dir)
         return output_dir
 
-
     def step_09_create_otu_table(self, input_dir):
         log, output_dir = self.initialize_step()
         if len([entry for entry in os.scandir(output_dir) if not entry.name.startswith('.')]) > 0:
-            log.info('output directory "%s" is not empty', output_dir)
+            log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             otus_fp, *_ = glob.glob(os.path.join(input_dir, '*rad3.uchime.fasta'))
             input_fps = glob.glob(os.path.join(self.work_dir, 'step_03*', '*.assembled.fastq.gz'))
@@ -519,36 +547,33 @@ class Pipeline:
                     re.sub(
                         string=os.path.basename(input_fp),
                         pattern='\.assembled\.fastq\.gz$',
-                        repl='.uchime.otutab.txt'))
+                        repl='.uchime.otutab.txt'
+                    )
+                )
                 otu_table_biom_fp = os.path.join(
                     output_dir,
                     re.sub(
                         string=os.path.basename(input_fp),
                         pattern='\.assembled\.fastq\.gz$',
-                        repl='.uchime.otutab.json'))
-
+                        repl='.uchime.otutab.json'
+                    )
+                )
 
                 run_cmd([
-                    self.vsearch_executable_fp,
-                    '--usearch_global', fasta_fp,
-                    '--db', otus_fp,
-                    '--id', '0.97',
-                    '--biomout', otu_table_biom_fp,
-                    '--otutabout', otu_table_fp
-                ])
+                        self.vsearch_executable_fp,
+                        '--usearch_global', fasta_fp,
+                        '--db', otus_fp,
+                        '--id', '0.97',
+                        '--biomout', otu_table_biom_fp,
+                        '--otutabout', otu_table_fp
+                    ],
+                    log_file = os.path.join(output_dir, 'log')
+                )
 
-                #os.remove(fasta_fp)
+                # os.remove(fasta_fp)
 
         self.complete_step(log, output_dir)
         return output_dir
-
-
-    #def step_10_write_otu_table(self, input_dir):
-    #    function_name = sys._getframe().f_code.co_name
-    #    log = logging.getLogger(name=function_name)
-    #    output_dir = create_output_dir(output_dir_name=function_name, parent_dir=self.work_dir)
-    #    return output_dir
-
 
 def get_combined_file_name(input_fp_list):
     if len(input_fp_list) == 0:
@@ -557,15 +582,15 @@ def get_combined_file_name(input_fp_list):
     def sorted_unique_elements(elements):
         return sorted(set(elements))
 
-    return '_'.join(                                     # 'Mock_Run3_Run4_V4.fastq.gz'
-        itertools.chain.from_iterable(                   # ['Mock', 'Run3', 'Run4', 'V4.fastq.gz']
-            map(                                         # [{'Mock'}, {'Run3', 'Run4'}, {'V4.fastq.gz'}]
+    return '_'.join(  # 'Mock_Run3_Run4_V4.fastq.gz'
+        itertools.chain.from_iterable(  # ['Mock', 'Run3', 'Run4', 'V4.fastq.gz']
+            map(  # [{'Mock'}, {'Run3', 'Run4'}, {'V4.fastq.gz'}]
                 sorted_unique_elements,
-                zip(                                     # [('Mock', 'Mock'), ('Run4', 'Run3'), ('V4.fastq.gz', 'V4.fastq.gz')]
-                    *[                                   # [('Mock', 'Run3', 'V4.fastq.gz'), ('Mock', 'Run4', 'V4.fastq.gz')]
+                zip(  # [('Mock', 'Mock'), ('Run4', 'Run3'), ('V4.fastq.gz', 'V4.fastq.gz')]
+                    *[  # [('Mock', 'Run3', 'V4.fastq.gz'), ('Mock', 'Run4', 'V4.fastq.gz')]
                         os.path.basename(fp).split('_')  # ['Mock', 'Run3', 'V4.fastq.gz']
-                        for fp                           # '/some/data/Mock_Run3_V4.fastq.gz'
-                        in input_fp_list                 # ['/input/data/Mock_Run3_V4.fastq.gz', '/input_data/Mock_Run4_V4.fastq.gz']
+                        for fp  # '/some/data/Mock_Run3_V4.fastq.gz'
+                        in input_fp_list  # ['/input/data/Mock_Run3_V4.fastq.gz', '/input_data/Mock_Run4_V4.fastq.gz']
                     ]))))
 
 
