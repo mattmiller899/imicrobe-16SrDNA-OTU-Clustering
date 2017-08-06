@@ -18,11 +18,16 @@ From: jkhurwitzlab/base:base
    apt update
    apt install -y apt-utils git wget zip zlib1g-dev libbz2-dev build-essential autoconf automake libtool python3-dev python3-pip
 
-    # install fastqc
-    cd /app
-    wget https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.5.zip
-    unzip fastqc_v0.11.5.zip
-    chmod a+x FastQC/fastqc
+   # create a directory for installed dependencies
+   APP_DIR=/app
+   mkdir -p $APP_DIR
+
+   # install fastqc binary to /app/FastQC/fastqc
+   cd $APP_DIR
+   wget https://www.bioinformatics.babraham.ac.uk/projects/fastqc/fastqc_v0.11.5.zip
+   unzip fastqc_v0.11.5.zip
+   rm fastqc_v0.11.5.zip
+   chmod a+x FastQC/fastqc
 
    # having trouble installing cutadapt with pip3 but this works
    # executable is called "cutadapt3"
@@ -33,31 +38,24 @@ From: jkhurwitzlab/base:base
 
    /usr/bin/pip3 install /imicrobe-16SrDNA-OTU-Clustering[dev,test]
 
-   # create a directory for installed dependencies
-   APP_DIR=/app
-   mkdir -p $APP_DIR
-   cd $APP_DIR
-
-   # build vsearch from source
+   # build vsearch from source and install to /app/vsearch/bin/vsearch
    cd $APP_DIR
    wget https://github.com/torognes/vsearch/archive/v2.4.3.tar.gz
    tar xzf v2.4.3.tar.gz
+   rm v2.4.3.tar.gz
    cd vsearch-2.4.3
    ./autogen.sh
    ./configure --prefix=$APP_DIR/vsearch
    make
    make install
+   cd ..
    rm -rf vsearch-2.4.3
-   VSEARCH_PATH=$APP_DIR/vsearch/bin
 
-   # install SILVA SSU
+   # install SILVA SSU to /app/silva
    cd $APP_DIR
    mkdir silva
    cd silva
    wget https://www.arb-silva.de/fileadmin/silva_databases/release_128/Exports/SILVA_128_SSURef_Nr99_tax_silva.fasta.gz
-
-   # add environment variables to /environment file
-   echo "\nexport PATH=$PEAR_PATH:$USEARCH_PATH:$VSEARCH_PATH:\$PATH" >> /environment
 
    # create mount points for TACC directories
    mkdir /home1
@@ -65,16 +63,15 @@ From: jkhurwitzlab/base:base
    mkdir /work
 
 %environment
-   PATH=/app:/app/FastQC
+   PATH=/app:/app/FastQC:/app/vsearch/bin:$PATH
 
 %test
-   cat /environment
-   . /environment
    echo "PATH=${PATH}"
 
    python3 --version
    cutadapt3 --version
+   /app/FastQC/fastqc --version
    # pear --version has exit code > 0
-   echo "`pear --version`"
-   usearch --version
-   vsearch --version
+   echo "`/app/pear --version`"
+   echo "`/app/usearch --version`"
+   echo "`/app/vsearch/bin/vsearch --version`"

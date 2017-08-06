@@ -10,6 +10,7 @@ notebooks/*
 *.img
 *.xz
 
+*.DS_Store
 *.pl
 *.fastq*
 *.pbs
