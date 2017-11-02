@@ -6,24 +6,25 @@
   "defaultMaxRunTime": "12:00:00",
   "defaultNodeCount": 1,
   "defaultQueue": "serial",
-  "deploymentPath": "jklynch/applications/imicrobe-JUITS16S-0.0.1/stampede",
+  "deploymentPath": "jklynch/applications/imicrobe-16SrDNA-OTU-Clustering-0.0.1/stampede",
   "deploymentSystem": "data.iplantcollaborative.org",
   "executionSystem": "tacc-stampede-jklynch",
   "executionType": "HPC",
   "helpURI": "http://protocols.io",
-  "label": "iMicrobe ITS-16S",
-  "longDescription": "iMicrobe ITS-16S",
+  "label": "iMicrobe 16SrDNA-OTU-Clustering",
+  "longDescription": "iMicrobe 16S rDNA OTU Clustering",
   "modules": [],
-  "name": "imicrobe-JUITS16S",
+  "name": "imicrobe-16SrDNA-OTU-Clustering",
   "ontology": [
     "http://sswapmeet.sswap.info/agave/apps/Application"
   ],
   "parallelism": "SERIAL",
-  "shortDescription": "iMicrobe ITS 16S",
+  "shortDescription": "iMicrobe 16S rDNA OTU Clustering",
   "tags": [
     "imicrobe",
-    "ITS",
-    "16S"
+    "16S",
+    "rDNA",
+    "OTU Clustering"
   ],
   "templatePath": "template.sh",
   "testPath": "test.sh",
@@ -45,7 +46,26 @@
         "description": "Directory of forward and reverse reads",
         "label": "Input directory (forward AND reverse reads)",
         "argument": "",
-        "showArgument": true
+        "showArgument": false
+      }
+    },
+    {
+      "id": "OUTPUT_DIR",
+      "value": {
+        "default": "this is needed",
+        "required": true,
+        "visible": true
+      },
+      "semantics": {
+        "fileTypes": [
+          "raw-0"
+        ]
+      },
+      "details": {
+        "description": "Directory for output",
+        "label": "Output directory",
+        "argument": "",
+        "showArgument": false
       }
     }
   ],
@@ -85,9 +105,9 @@
       }
     },
     {
-      "id": "min_overlap",
+      "id": "cutadapt_minimum_length",
       "value": {
-        "default": "200",
+        "default": 100,
         "required": true,
         "type": "number",
         "visible": true
@@ -95,9 +115,43 @@
       "semantics": {
       },
       "details": {
-        "argument": "--min-overlap",
-        "description": "minimum overlap",
-        "label": "minimum overlaps",
+        "argument": "--cutadapt-min-length",
+        "description": "minimum length for cutadapt",
+        "label": "cutadapt minimum length",
+        "showArgument": true
+      }
+    },
+    {
+      "id": "vsearch_filter_maxee",
+      "value": {
+        "default": 1,
+        "required": true,
+        "type": "number",
+        "visible": true
+      },
+      "semantics": {
+      },
+      "details": {
+        "argument": "--vsearch-filter-maxee",
+        "description": "max quality score",
+        "label": "maximum quality score",
+        "showArgument": true
+      }
+    },
+    {
+      "id": "vsearch_filter_trunclen",
+      "value": {
+        "default": 252,
+        "required": true,
+        "type": "number",
+        "visible": true
+      },
+      "semantics": {
+      },
+      "details": {
+        "argument": "--vsearch-filter-trunclen",
+        "description": "truncate length",
+        "label": "vsearch truncation length",
         "showArgument": true
       }
     }

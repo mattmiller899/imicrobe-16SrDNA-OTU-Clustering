@@ -1,0 +1,29 @@
+language: c
+sudo: required
+dist: trusty
+
+before_install:
+  - pwd
+  - cd /tmp
+  - git clone https://github.com/singularityware/singularity.git
+  - cd singularity
+  - ./autogen.sh
+  - ./configure --prefix=/usr/local
+  - make
+  - sudo make install
+install:
+  - pwd
+  - cd /home/travis/build/hurwitzlab/imicrobe-16SrDNA-OTU-Clustering
+  - ls -l
+  - make container
+script:
+  - pwd
+  - ls -l
+  - export CUTADAPT=cutadapt3
+  - export PEAR=/app/pear
+  - export VSEARCH=/app/vsearch/bin/vsearch
+  - singularity exec singularity/imicrobe-16SrDNA-OTU-Clustering.img py.test test/
+notifications:
+  email:
+    on_success: always
+    on_failure: always
