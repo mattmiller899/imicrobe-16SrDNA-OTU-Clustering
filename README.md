@@ -8,14 +8,14 @@ An OTU clustering pipeline for paired-end 16S data.
 
 There are three ways to run this pipeline.
 
-  + As a Python 3 package.
+  + As a Python 3.6+ package.
   + As a Singularity container.
   + As a CyVerse app.
 
-## Install and Run as a Python 3 Package
+## Install and Run as a Python 3.6+ Package
 
-The only requirement to run the pipeline as a Python 3 package is a Python 3 interpreter.
-Install the pipeline:
+The only requirement to run the pipeline as a Python 3.6+ package is a Python 3.6+ interpreter and `Git`. It is not required but is highly recommended to install the pipeline in a virtual environment.
+Install the pipeline with `pip`:
 
 ```
 $ pip install git+https://github.com/hurwitzlab/imicrobe-16SrDNA-OTU-Clustering.git
@@ -31,8 +31,8 @@ $ cluster_16S \
 
 ## Build and Run as a Singularity container
 
-Singularity, Git, and make must be installed to build the pipeline as a Singularity container.
-In addition, `sudo` priviledge is required.
+`Singularity`, `Git`, and `make` must be installed to build the pipeline as a Singularity container.
+In addition, `sudo` privilege is required.
 
 Build the pipeline container:
 
