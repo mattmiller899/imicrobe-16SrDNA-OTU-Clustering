@@ -22,13 +22,13 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.0.1',
+    version='1.0.1',
 
-    description='A pipeline for ITS-16S data.',
+    description='A pipeline for clustering 16S data.',
     long_description=long_description,
 
     # The project's main homepage.
-    url='https://github.com/hurwitzlab/imicrobe-JUITS16S',
+    url='https://github.com/hurwitzlab/imicrobe-16SrDNA-OTU-Clustering',
 
     # Author details
     author='Jana U''Ren, Joshua Lynch',
