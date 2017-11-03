@@ -18,7 +18,7 @@ The only requirement to run the pipeline as a Python 3 package is a Python 3 int
 Install the pipeline:
 
 ```
-$ pip install https://github.com/hurwitzlab/imicrobe-16SrDNA-OTU-Clustering.git
+$ pip install git+https://github.com/hurwitzlab/imicrobe-16SrDNA-OTU-Clustering.git
 ```
 
 Run the pipeline:
