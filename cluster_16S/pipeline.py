@@ -158,7 +158,23 @@ class Pipeline:
             log.info('output directory "%s" is not empty, this step will be skipped', output_dir)
         else:
             log.debug('output_dir: %s', output_dir)
-
+            #Check for fasta and qual files
+            fasta_file_glob = os.path.join(input_dir, '*.fasta*')
+            qual_file_glob = os.path.join(input_dir, '*.qual*')
+            fasta_files = sorted(glob.glob(fasta_file_glob))
+            qual_files = sorted(glob.glob(qual_file_glob))
+            fastas = [fasta.split('.')[0] for fasta in fasta_files]
+            quals = [qual.split('.')[0] for qual in qual_files]
+            for fasta in fastas:
+                for qual in quals:
+                    if fasta == qual:
+                        tmpfasta = os.path.join(input_dir, fasta + ".fasta")
+                        tmpqual = os.path.join(input_dir, qual + ".qual")
+                        tmpfastq = os.path.join(input_dir, fasta + ".fastq")
+                        fasta_qual_to_fastq(tmpfasta, tmpqual, tmpfastq)
+                        log.info('%s created', tmpfastq)
+                        quals.remove(qual)
+                        break
             input_file_glob = os.path.join(input_dir, '*.fastq*')
             log.debug('input_file_glob: %s', input_file_glob)
             input_fp_list = sorted(glob.glob(input_file_glob))
